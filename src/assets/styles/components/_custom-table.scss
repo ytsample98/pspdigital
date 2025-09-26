@@ -1,0 +1,12 @@
+/* Custom responsive table wrapper */
+.custom-table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (min-width: 768px) {
+  .custom-table-responsive {
+    overflow-x: visible;
+  }
+}

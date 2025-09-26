@@ -1,0 +1,42 @@
+
+.table td, .table th {
+  font-size: 14px !important;
+  padding: 3px 12px !important;
+  height: 38px !important;
+  vertical-align: middle !important;
+}
+button {
+    min-width: 80px;
+    min-height: 40px; 
+  }
+.table {
+  margin-bottom: 0;
+  thead {
+    th {
+      vertical-align: middle !important;
+      border-top: 0;
+      border-bottom-width: 1px;
+      font-family: $type1;
+      font-weight: 500;
+      i {
+        margin-left: 0.325rem;
+      }
+    }
+  }
+  th,
+  td {
+    vertical-align: middle;
+    font-size: $default-font-size;
+    line-height: 1;
+    white-space: nowrap;
+    padding: 12px 15px;
+    img {
+      width: 36px;
+      height: 36px;
+      border-radius: 100%;
+    }
+    .badge {
+      margin-bottom: 0;
+    }
+  }
+}

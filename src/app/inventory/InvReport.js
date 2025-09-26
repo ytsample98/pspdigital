@@ -1,0 +1,1 @@
+//const InvReport = lazy(() => import('./inventory/InvReport'));

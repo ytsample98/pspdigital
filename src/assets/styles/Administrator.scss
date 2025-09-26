@@ -1,0 +1,12 @@
+.admin-media-list .media-card .card {
+  transition: transform 0.3s;
+}
+
+.admin-media-list .media-card .card:hover {
+  transform: translateY(-5px);
+  background-color: #f8f9fa;
+}
+
+.mdi-48px {
+  font-size: 48px;
+}
