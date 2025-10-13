@@ -1,3 +1,4 @@
+// IndirectBilling.js
 import React, { Component } from "react";
 import { db } from "../../../../../firebase";
 import {
@@ -32,7 +33,7 @@ class IndirectBilling extends Component {
       billType: "Standard",
       billNo: "",
       billDate: new Date().toISOString().split("T")[0],
-      status: "Entered",
+      status: "Entered", // initial status
       refNo: "",
       supplierId: "",
       supplier: "",
@@ -123,7 +124,7 @@ class IndirectBilling extends Component {
         itemDesc: product.ptdescription || "",
         hsnCode: product.hsnCode || "",
         uom: product.uom || "",
-        store: product.store || "",
+        locator: product.store || "",
         onHand: product.onHand || "",
         shipQty: "",
         unitPrice: "",
@@ -189,8 +190,8 @@ class IndirectBilling extends Component {
     this.setState(prev => ({
       formData: {
         ...prev.formData,
-        totalValue: finalValue.toFixed(2),
-        freightTaxAmt: freightTaxAmt.toFixed(2)
+        totalValue: finalValue ? finalValue.toFixed(2) : "",
+        freightTaxAmt: freightTaxAmt ? freightTaxAmt.toFixed(2) : "0.00"
       }
     }));
   };
@@ -200,26 +201,44 @@ class IndirectBilling extends Component {
   handleSubmit = async (e) => {
     e.preventDefault();
     const { editingId, formData, bills } = this.state;
+    // Ensure status becomes "Awaiting Approval" on save (as per rules)
     const saveData = {
       ...formData,
+      status: "Awaiting Approval",
       notes: this.state.notes,
-      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      createdAt: editingId ? formData.createdAt || serverTimestamp() : serverTimestamp(),
     };
-    if (editingId) {
-      await updateDoc(doc(db, "indirectBills", editingId), saveData);
-    } else {
-      saveData.billNo = formData.billType === "Standard"
-        ? `IB${1000 + bills.length}`
-        : formData.billNo || `IB${1000 + bills.length}`;
-      await addDoc(collection(db, "indirectBills"), saveData);
+    try {
+      if (editingId) {
+        await updateDoc(doc(db, "indirectBills", editingId), saveData);
+      } else {
+        saveData.billNo = formData.billType === "Standard"
+          ? `IB${1000 + bills.length}`
+          : formData.billNo || `IB${1000 + bills.length}`;
+        await addDoc(collection(db, "indirectBills"), saveData);
+      }
+      // refresh list
+      this.fetchBills();
+      this.setState({ showForm: false, editingId: null, formData: this.getEmptyForm(), notes: "" });
+    } catch (err) {
+      console.error("Save error:", err);
+      alert("Error saving: " + err.message);
     }
-    this.setState({
-      showForm: false,
-      editingId: null,
-      formData: this.getEmptyForm(),
-      notes: "",
-    });
-    this.fetchBills();
+  };
+
+  // render helpers
+  getStatusBadge = (status) => {
+    // rules provided by user:
+    // awaiting for approval: warning, approved: success, rejected: success (user requested)
+    let cls = "badge-secondary";
+    if (!status) status = "Entered";
+    if (status === "Awaiting Approval" ) cls = "badge-warning";
+    else if (status === "Approved") cls = "badge-success";
+    else if (status === "Rejected") cls = "badge-danger"; // per user's rule
+    else if (status === "Partial") cls = "badge-purple";
+    else if (status === "Completed") cls = "badge-info";
+    return <label className={`badge ${cls}`} style={{ fontSize: '14px' }}>{status}</label>;
   };
 
   renderBillingDetailsTab = () => {
@@ -260,7 +279,7 @@ class IndirectBilling extends Component {
           </div>
           <div className="form-group col-md-2">
             <label>Status</label>
-            <input className="form-control" value={f.status} readOnly />
+            <input type="text" className="form-control form-control-sm" value={f.status} readOnly />
           </div>
           <div className="form-group col-md-2">
             <label>Ref No</label>
@@ -308,6 +327,7 @@ class IndirectBilling extends Component {
             <input className="form-control" value={f.totalValue} readOnly />
           </div>
         </div>
+
         <div className="d-flex justify-content-between align-items-center mt-3 mb-2">
             <h5>Line Items</h5>
             <button
@@ -317,7 +337,8 @@ class IndirectBilling extends Component {
             >
                 + Add Items
             </button>
-            </div>
+        </div>
+
         <div className="table-responsive mt-3">
         <table className="table table-bordered">
           <thead className="thead-light">
@@ -374,11 +395,8 @@ class IndirectBilling extends Component {
         </table>
       </div>
       </div>
-      
-    
     );
   };
-
 
   renderPortTab = () => {
     const f = this.state.formData;
@@ -587,11 +605,10 @@ class IndirectBilling extends Component {
 
   renderForm = () => {
   return (
-   
- <div className="card full-height">
-        <form className="form-sample" onSubmit={this.handleSubmit}>
-          <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
- <h4 className="mb-3">Indirect Billing</h4>
+    <div className="card full-height">
+      <form className="form-sample" onSubmit={this.handleSubmit}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+          <h4 className="mb-3">Indirect Billing</h4>
           {this.renderTabs()}
           {this.state.activeTab === 0 && this.renderBillingDetailsTab()}
           {this.state.activeTab === 1 && this.renderPortTab()}
@@ -613,7 +630,7 @@ class IndirectBilling extends Component {
             Cancel
           </button>
           <button className="btn btn-success" type="submit">
-            {this.state.editingId ? "Update" : "Create"}
+            {this.state.editingId ? "Update & Send for Approval" : "Create & Send for Approval"}
           </button>
         </div>
       </form>
@@ -626,7 +643,9 @@ class IndirectBilling extends Component {
       <div className="card-body">
         <div className="d-flex justify-content-between align-items-center mb-3">
           <h4 className="card-title">Indirect Billing</h4>
-          <button type="button" className="btn btn-primary" onClick={() => this.setState({ showForm: true })}>Create</button>
+          <div>
+            <button type="button" className="btn btn-primary mr-2" onClick={() => this.setState({ showForm: true })}>Create</button>
+          </div>
         </div>
         <div className="table-responsive">
           <table className="table table-bordered table-hover">
@@ -663,7 +682,7 @@ class IndirectBilling extends Component {
                   <td>{b.supplier}</td>
                   <td>{b.currency}</td>
                   <td>{b.totalValue}</td>
-                  <td>{b.status}</td>
+                  <td>{this.getStatusBadge(b.status)}</td>
                 </tr>
               ))}
               {this.state.bills.length === 0 && (

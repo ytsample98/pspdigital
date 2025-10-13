@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import { db } from '../../../../firebase';
-import { collection, getDocs, updateDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, updateDoc, doc ,onSnapshot} from 'firebase/firestore';
 import { serverTimestamp } from 'firebase/firestore';
 
 class BillingApproval extends Component {
@@ -10,9 +10,49 @@ class BillingApproval extends Component {
     loading: false,
     showRejectDialog: false,
     rejectReason: "",
+    searchTerm:'',
   };
 
-  componentDidMount() { this.fetchAwaiting(); }
+  componentDidMount() { 
+  this.subscribeToBills();
+
+ }
+
+componentWillUnmount() {
+  if (this._unsubCob) this._unsubCob();
+  if (this._unsubInv) this._unsubInv();
+}
+
+subscribeToBills = () => {
+  // cobilling listener
+  this._unsubCob = onSnapshot(collection(db, 'cobilling'), snap => {
+    const cobData = snap.docs.map(d => ({ id: d.id, ...d.data(), source: 'cob' }));
+    this._latestCob = cobData;
+    this.mergeAndSet();
+  }, err => {
+    console.error('cob snapshot error', err);
+  });
+
+  // invoices listener
+  this._unsubInv = onSnapshot(collection(db, 'invoices'), snap => {
+    const invData = snap.docs.map(d => ({ id: d.id, ...d.data(), source: 'direct' }));
+    this._latestInv = invData;
+    this.mergeAndSet();
+  }, err => {
+    console.error('inv snapshot error', err);
+  });
+};
+
+mergeAndSet = () => {
+  const cob = this._latestCob || [];
+  const inv = this._latestInv || [];
+  const merged = [...cob, ...inv].sort((a,b) => {
+    const da = a.cobillingDate || a.invoiceDate || '';
+    const db_ = b.cobillingDate || b.invoiceDate || '';
+    return db_.localeCompare(da);
+  });
+  this.setState({ cobilling: merged });
+};
 
  fetchAwaiting = async () => {
   // 1. Fetch COB bills
@@ -100,25 +140,27 @@ class BillingApproval extends Component {
   };
 
   handleRejectConfirm = async () => {
-    const { selected, rejectReason } = this.state;
-    if (!rejectReason.trim()) {
-      alert("Please enter a reason for rejection.");
-      return;
-    }
-    try {
-      await updateDoc(doc(db, 'cobilling', selected.id), {
-        status: 'Rejected',
-        rejectedAt: serverTimestamp(),
-        rejectReason,
-        updatedAt: serverTimestamp()
-      });
-      alert('Rejected.');
-      this.fetchAwaiting();
-      this.closePreview();
-    } catch (err) {
-      alert(err.message);
-    }
-  };
+  const { selected, rejectReason } = this.state;
+  if (!rejectReason.trim()) {
+    alert("Please enter a reason for rejection.");
+    return;
+  }
+  try {
+    const ref = doc(db, selected.source === 'direct' ? 'invoices' : 'cobilling', selected.id);
+    await updateDoc(ref, {
+      status: 'Rejected',
+      rejectedAt: serverTimestamp(),
+      rejectReason,
+      updatedAt: serverTimestamp()
+    });
+    alert('Rejected.');
+    this.fetchAwaiting();
+    this.closePreview();
+  } catch (err) {
+    alert(err.message);
+  }
+};
+
 
   renderRejectDialog = () => (
     <div className="custom-overlay">
@@ -143,6 +185,16 @@ class BillingApproval extends Component {
     <div className="card mt-4 full-height">
       <div className="card-body">
         <h4 className="card-title">Billing Approval</h4>
+        <div className="mb-3">
+                <input
+    type="text"
+    className="form-control"
+    placeholder="Search by Bill No, Customer, Status, Date..."
+    value={this.state.searchTerm}
+    onChange={(e) => this.setState({ searchTerm: e.target.value })}
+  />
+</div>
+
         <div className="table-responsive">
           <table className="table table-bordered table-hover">
             <thead className="thead-light">
@@ -152,37 +204,67 @@ class BillingApproval extends Component {
                 <th>Customer</th>
                 <th>Date</th>
                 <th>Value</th>
+                <th>Type</th>
                 <th>Status</th>
               </tr>
             </thead>
-            <tbody>
-              {this.state.cobilling.map(c => {
-                let statusClass = "badge-secondary";
-                if (c.status === "Entered") statusClass = "badge-warning";
-                else if (c.status === "Approved") statusClass = "badge-success";
-                else if (c.status === "Rejected") statusClass = "badge-danger";
-                else if (c.status === "Awaiting Approval") statusClass = "badge-warning";
-                return (
-                  <tr key={c.id}>
-                    <td>
-                      <button className="btn btn-link p-0" onClick={() => this.openPreview(c)}>
-                        {c.cobillingNo}
-                      </button>
-                    </td>
-                    <td>{c.customerOrderId}</td>
-                    <td>{c.customer}</td>
-                    <td>{c.cobillingDate}</td>
-                    <td>{c.billValue}</td>
-                    <td>
-                      <label className={`badge ${statusClass}`} style={{ fontSize: '14px' }}>{c.status}</label>
-                    </td>
-                  </tr>
-                );
-              })}
-              {this.state.cobilling.length === 0 && (
-                <tr><td colSpan="7" className="text-center">No bills awaiting approval</td></tr>
-              )}
-            </tbody>
+           <tbody>
+  {this.state.cobilling
+    .filter(c => {
+      const term = this.state.searchTerm.toLowerCase();
+      if (!term) return true;
+
+      const billNo = (c.source === 'direct' ? (c.invoiceNo || '-') : (c.cobillingNo || '-')).toString().toLowerCase();
+      const date = (c.source === 'direct' ? (c.invoiceDate || '-') : (c.cobillingDate || '-')).toString().toLowerCase();
+      const value = (c.source === 'direct' ? (c.invoiceValue || c.amount || '-') : (c.billValue || c.amount || '-')).toString().toLowerCase();
+      const customer = (c.customer || "-").toLowerCase();
+      const status = (c.status || "-").toLowerCase();
+      const type = (c.source === 'direct' ? "Direct Billing" : "Customer Billing").toLowerCase();
+
+      return (
+        billNo.includes(term) ||
+        date.includes(term) ||
+        value.includes(term) ||
+        customer.includes(term) ||
+        status.includes(term) ||
+        type.includes(term)
+      );
+    })
+    .map(c => {
+      let statusClass = "badge-secondary";
+      if (c.status === "Approved") statusClass = "badge-success";
+      else if (c.status === "Amended") statusClass = "badge-info";
+      else if (c.status === "Cancelled") statusClass = "badge-danger";
+      else if (c.status === "Awaiting Approval" || c.status === "Pending") statusClass = "badge-warning";
+
+      const billNo = c.source === 'direct' ? (c.invoiceNo || '-') : (c.cobillingNo || '-');
+      const date = c.source === 'direct' ? (c.invoiceDate || '-') : (c.cobillingDate || '-');
+      const value = c.source === 'direct' ? (c.invoiceValue || c.amount || '-') : (c.billValue || c.amount || '-');
+
+      return (
+        <tr key={`${c.source}_${c.id}`}>
+          <td>
+            <button className="btn btn-link p-0" onClick={() => this.openPreview(c)}>{billNo}</button>
+          </td>
+          <td>{c.customerOrderId || "-"}</td>
+          <td>{c.customer || "-"}</td>
+          <td>{date}</td>
+          <td>{value}</td>
+          <td>{c.source === 'direct' ? "Direct Billing" : "Customer Billing"}</td>
+          <td>
+            <label className={`badge ${statusClass}`} style={{ fontSize: '14px' }}>{c.status || 'N/A'}</label>
+          </td>
+        </tr>
+      );
+    })}
+  {this.state.cobilling.length === 0 && (
+    <tr>
+      <td colSpan="7" className="text-center">No billing found.</td>
+    </tr>
+  )}
+</tbody>
+
+
           </table>
         </div>
       </div>

@@ -43,6 +43,7 @@ class Order extends Component {
     showTaxOverlay: false,
     currentTaxIdx: null,
      breakdownType: 'Amount', 
+     searchTerm:'',
     formData: {
       orderNo: '',
       orderDate: new Date().toISOString().split('T')[0],
@@ -82,6 +83,16 @@ class Order extends Component {
     ].filter(Boolean).join('\n');
   };
 
+handleOverlayClose = () => {
+  this.setState({
+    overlayType: '',
+    overlaySearch: '',
+    productOverlayVisible: false,
+    showTaxOverlay: false,
+    currentTaxLineIdx: null,
+    selectedProductIds: [],
+  });
+};
 
 
    getTaxDetailsFromGroup(groupName) {
@@ -224,7 +235,15 @@ calculateOrderTotals = () => {
     const totalTaxAmount = parseFloat(order.taxAmount || 0);
     const grandTotal = parseFloat(order.orderValue || (subtotal + totalTaxAmount));
     const amountWords = `INR ${toWords(Math.floor(grandTotal))} Only`;
+    const isINR = (order.currency || 'INR') === 'INR';
+const conversionRate = parseFloat(order.conversionRate || 1);
 
+const convert = (amt) => isINR ? amt : amt * conversionRate;
+const subtotalConv = convert(subtotal);
+const freightChargesConv = convert(freightCharges);
+const taxAmountConv = convert(totalTaxAmount);
+const discountAmountConv = convert(order.discountAmount || 0);
+const grandTotalConv = convert(order.afterDiscountValue || grandTotal);
     // 4. Tax breakdown by group
     let taxBreakdown = {};
     let taxGroupDetails = [];
@@ -251,40 +270,6 @@ calculateOrderTotals = () => {
           });
         }
       });
-      // Legacy support for cgst/sgst/igst
-      if (item.cgst) {
-        const key = `CGST ${item.cgst}%`;
-        const taxAmt = (base * item.cgst) / 100;
-        taxBreakdown[key] = (taxBreakdown[key] || 0) + taxAmt;
-        taxGroupDetails.push({
-          sno: sno++,
-          group: key,
-          peramt: `${item.cgst}%`,
-          taxAmt: taxAmt.toFixed(2)
-        });
-      }
-      if (item.sgst) {
-        const key = `SGST ${item.sgst}%`;
-        const taxAmt = (base * item.sgst) / 100;
-        taxBreakdown[key] = (taxBreakdown[key] || 0) + taxAmt;
-        taxGroupDetails.push({
-          sno: sno++,
-          group: key,
-          peramt: `${item.sgst}%`,
-          taxAmt: taxAmt.toFixed(2)
-        });
-      }
-      if (item.igst) {
-        const key = `IGST ${item.igst}%`;
-        const taxAmt = (base * item.igst) / 100;
-        taxBreakdown[key] = (taxBreakdown[key] || 0) + taxAmt;
-        taxGroupDetails.push({
-          sno: sno++,
-          group: key,
-          peramt: `${item.igst}%`,
-          taxAmt: taxAmt.toFixed(2)
-        });
-      }
     });
     if (freightTax > 0) {
       taxBreakdown["Freight Tax"] = freightTax;
@@ -362,7 +347,7 @@ calculateOrderTotals = () => {
             <th style="border:1px solid #011b56;">UOM</th>
             <th style="border:1px solid #011b56;">Qty</th>
             <th style="border:1px solid #011b56;">Unit Price</th>
-            <th style="border:1px solid #011b56;">GST%</th>
+           ${isINR ? `<th style="border:1px solid #011b56;">GST%</th>`: ''} 
             <th style="border:1px solid #011b56;">Item Total</th>
           </tr>
         </thead>
@@ -378,21 +363,21 @@ calculateOrderTotals = () => {
                 <td style="border:1px solid #011b56;">${item.hsnCode}</td>
                 <td style="border:1px solid #011b56;">${item.uom}</td>
                 <td style="border:1px solid #011b56;">${item.qty}</td>
-                <td style="border:1px solid #011b56;">${item.unitPrice}</td>
-                <td style="border:1px solid #011b56;">${gstLabel}</td>
-                <td style="border:1px solid #011b56;">${item.total}</td>
+                <td style="border:1px solid #011b56;">${convert(item.unitPrice)}</td>
+                ${isINR ? `<td style="border:1px solid #011b56;">${gstLabel}</td>`: ''}
+                <td style="border:1px solid #011b56;">${convert(item.total)}</td>
               </tr>`;
           }).join('')}
           <tr>
             <td colspan="7" style="text-align:right; border:1px solid #011b56;"><b>Subtotal</b></td>
-            <td style="border:1px solid #011b56;"><b>${subtotal.toFixed(2)}</b></td>
+            <td style="border:1px solid #011b56;"><b>${convert(subtotal).toFixed(2)}</b></td>
         </tr>
           <td colspan="7" style="text-align:right; border:1px solid #011b56;"><b>Total Tax Amount</b></td>
-          <td style="border:1px solid #011b56;"><b>${totalTaxAmount.toFixed(2)}</b></td>
+          <td style="border:1px solid #011b56;"><b>${convert(totalTaxAmount).toFixed(2)}</b></td>
         </tr>
         <tr>
           <td colspan="7" style="text-align:right; border:1px solid #011b56;"><b>Grand Total</b></td>
-          <td style="border:1px solid #011b56;"><b>${grandTotal.toFixed(2)}</b></td>
+          <td style="border:1px solid #011b56;"><b>${convert(grandTotal.toFixed(2))}</b></td>
         </tr>
         </tbody>
       </table>
@@ -650,6 +635,11 @@ fetchTaxGroups = async () => {
   fetchorders = async () => {
     const snap = await getDocs(collection(db, 'orders'));
     const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    data.sort((a,b)=>{
+      const dateA = new Date(a.orderDate || a.createdAt?.toDate?.() || a.createdAt || 0);
+      const dateB = new Date(b.orderDate || b.createdAt?.toDate?.() || b.createdAt || 0);
+      return dateA - dateB;
+    });
     this.setState({ orders: data.reverse() });
   };
 
@@ -840,7 +830,7 @@ handleSubmit = async (e) => {
     const quoteSnap = await getDocs(collection(db, "quotes"));
     const quoteDoc = quoteSnap.docs.find(q => q.data().quoteNo === formData.quoteNo);
     if (quoteDoc) {
-      await updateDoc(doc(db, "quotes", quoteDoc.id), { status: "ConvertedToOrder" });
+      await updateDoc(doc(db, "quotes", quoteDoc.id), { status: "CO Created" });
     }
   }
 
@@ -937,8 +927,15 @@ toggleTaxGroupSelection = (groupName, lineIdx, isChecked) => {
   showOverlay = (type) => this.setState({ overlayType: type, overlaySearch: '' });
   hideOverlay = () => this.setState({ overlayType: '', overlaySearch: '' });
 
-  selectOverlayValue = (value) => {
+  selectOverlayValue = async(value) => {
     if (this.state.overlayType === 'customer') {
+      let conversionRate='';
+      if(value.currency && value.currency !== 'INR'){
+        const snap=await getDocs(collection(db,'currencies'));
+        const currencies=snap.docs.map(d =>({id:d.id, ...d.data()}));
+        const cur=currencies.find(c => c.code === value.currency);
+        conversionRate=cur?cur.conversionRate:'';
+      }
       this.setState(prev => ({
         formData: {
           ...prev.formData,
@@ -946,8 +943,7 @@ toggleTaxGroupSelection = (groupName, lineIdx, isChecked) => {
           billTo: this.formatAddress(value.billTo),
           shipTo: this.formatAddress(value.shipTo),
           currency: value.currency || '',
-          // despatchMode: value.despatchMode || '', // No auto-fill for despatch mode
-          // paymentTerms: value.paymentTerms || '' // No auto-fill for payment terms
+          conversionRate: conversionRate,
         },
         overlayType: '',
         overlaySearch: ''
@@ -1016,7 +1012,16 @@ toggleTaxGroupSelection = (groupName, lineIdx, isChecked) => {
   return (
     <div className="custom-overlay">
       <div className="custom-overlay-content">
+        <div className="d-flex justify-content-between align-items-center mb-2">
         <div className="custom-overlay-title">{title}</div>
+        <i className='mdi mdi-close-box-outline'
+        style={{ fontSize: "24px", color: "#2196F3", cursor: "pointer" }} 
+            onClick={this.handleOverlayClose}
+            aria-label="Close"
+            type="button"
+          >
+          </i>
+        </div>
         <input
           type="text"
           className="form-control mb-2"
@@ -1054,7 +1059,6 @@ toggleTaxGroupSelection = (groupName, lineIdx, isChecked) => {
             </tbody>
           </table>
         </div>
-        <button className="btn btn-secondary btn-sm mt-2" onClick={this.hideOverlay}>Cancel</button>
       </div>
     </div>
   );
@@ -1068,16 +1072,35 @@ renderTaxOverlay = () => {
   const selected = new Set(item.taxGroupNames || []);
 
   return (
-    <div style={{
-      position: 'fixed', zIndex: 1000, top: '10%', left: '15%',
-      background: '#fff', border: '1px solid #ccc', padding: '20px',
-      boxShadow: '0 0 10px rgba(0,0,0,0.3)', width: '70%',
-      maxHeight: '70vh', overflowY: 'auto'
-    }}>
-      <h5>Select Tax Groups</h5>
+     <div className="custom-overlay">
+      <div className="custom-overlay-content">
+        <div className="d-flex justify-content-between align-items-center mb-2">
+          <div className="custom-overlay-title">Select Tax Groups</div>
+          <div>
+            <button
+              className="btn btn-primary btn-sm mr-2"
+              onClick={() => this.setState({ showTaxOverlay: false })}
+              type="button"
+            >
+              Submit
+            </button>
+            <i className="mdi mdi-close-box-outline"
+              style={{ fontSize: "24px", color: "#2196F3", cursor: "pointer" }} 
+              onClick={this.handleOverlayClose}
+              aria-label="Close"
+              type="button"
+            >
+            </i>
+          </div>
+          </div>
       <table className="table table-sm table-bordered">
-        <thead>
-          <tr><th></th><th>Group</th><th>Components</th><th>%</th></tr>
+<thead style={{ background: '#f4f6fa' }}>
+            <tr>
+              <th></th>
+              <th>Group</th>
+              <th>Components</th>
+              <th>%</th>
+              </tr>
         </thead>
         <tbody>
           {taxGroups.map(tg => (
@@ -1098,11 +1121,7 @@ renderTaxOverlay = () => {
           ))}
         </tbody>
       </table>
-      <div className="text-right mt-3">
-        <button className="btn btn-sm btn-success" onClick={() => this.setState({ showTaxOverlay: false })}>
-          Done
-        </button>
-      </div>
+    </div>
     </div>
   );
 };
@@ -1205,6 +1224,7 @@ renderOrderPreview = () => {
     </div>
   );
 };
+
 renderBreakdownTab = () => {
   const { breakdownItems, breakdownType, formData } = this.state;
 
@@ -1226,7 +1246,7 @@ renderBreakdownTab = () => {
   };
 
   const canSave = this.isBreakdownValid();
-  const isConverted = formData?.status === "ConvertedToOrder"; // 🔑 single flag
+  const isConverted = formData?.status === "CO Created"; // 🔑 single flag
 
   return (
     <div>
@@ -1418,22 +1438,31 @@ renderBreakdownTab = () => {
     </div>
   );
 };
-  renderProductOverlay = () => {
-    const { filteredProducts, productOverlaySearch, selectedProductIds } = this.state;
-const filtered = filteredProducts.filter(p =>
-  (p.ptshortName || '').toLowerCase().includes(productOverlaySearch.toLowerCase()) ||
-  (p.ptdescription || '').toLowerCase().includes(productOverlaySearch.toLowerCase()) ||
-  (p.itemCode || '').toLowerCase().includes(productOverlaySearch.toLowerCase())
-);
-    return (
-      <div className="custom-overlay">
-        <div className="custom-overlay-content">
-          <div className="d-flex justify-content-between align-items-center mb-2">
-            <div className="custom-overlay-title">Select Products</div>
+renderProductOverlay = () => {
+  const { filteredProducts, productOverlaySearch, selectedProductIds, currentPage = 1 } = this.state;
+  const itemsPerPage = 10;
+  const filtered = filteredProducts.filter(p =>
+    (p.ptshortName || '').toLowerCase().includes(productOverlaySearch.toLowerCase()) ||
+    (p.ptdescription || '').toLowerCase().includes(productOverlaySearch.toLowerCase()) ||
+    (p.itemCode || '').toLowerCase().includes(productOverlaySearch.toLowerCase())
+  );
+  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+  const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  return (
+    <div className="custom-overlay" 
+    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div
+        className="custom-overlay-content"
+      >
+        <div className="d-flex justify-content-between align-items-center mb-2">
+          <div className="custom-overlay-title">Select Products</div>
+          <div className="d-flex align-items-center">
             <button
-              className="btn btn-success btn-sm"
+              className="btn btn-primary btn-sm mr-2"
+              type="button"
               onClick={() => {
-                const selectedProducts = filteredProducts.filter(p => this.state.selectedProductIds.includes(p.id));
+                const selectedProducts = filteredProducts.filter(p => selectedProductIds.includes(p.id));
                 this.setState(prev => ({
                   formData: {
                     ...prev.formData,
@@ -1449,8 +1478,8 @@ const filtered = filteredProducts.filter(p =>
                           materialType: p.materialType || '',
                           onHand: p.onHand || 0,
                           taxGroup: p.taxGroup || '',
-                          custPartNo: p.custPartNo || '', // Assuming this is cust part table
-                          hsnCode: p.hsnCode || '', // Assuming HSN No.
+                          custPartNo: p.custPartNo || '',
+                          hsnCode: p.hsnCode || '',
                           unitPrice: p.unitPrice || 0,
                           qty: 1,
                           total: (p.unitPrice || 0).toFixed(2)
@@ -1461,80 +1490,137 @@ const filtered = filteredProducts.filter(p =>
                   selectedProductIds: []
                 }));
               }}
-            >Add Selected</button>
-          </div>
-          <input
-            type="text"
-            className="form-control mb-2"
-            placeholder="Search products..."
-            value={productOverlaySearch}
-            onChange={e => this.setState({ productOverlaySearch: e.target.value })}
-          />
-          <div style={{ maxHeight: 300, overflowY: 'auto' }}>
-            <table className="table table-bordered table-sm">
-              <thead>
-                <tr>
-                  <th></th>
-                  <th>Item Code</th>
-                  <th>Item Desc</th>
-                  <th>Item Type</th>
-                  <th>Material Type</th>
-                  <th>On Hand</th>
-                  <th>Tax Grp</th>
-                  <th>Cust Part No</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(p => (
-                  <tr key={p.id}>
-                    <td>
-                      <input
-                        type="checkbox"
-                        checked={selectedProductIds.includes(p.id)}
-                        onChange={e => {
-                          const checked = e.target.checked;
-                          this.setState(prev => ({
-                            selectedProductIds: checked
-                              ? [...prev.selectedProductIds, p.id]
-                              : prev.selectedProductIds.filter(id => id !== p.id)
-                          }));
-                        }}
-                      />
-                    </td>
-                    <td>{p.productId}</td>
-                    <td>{p.ptdescription || ''}</td>
-                    <td>{p.itemType || ''}</td>
-                    <td>{p.materialType || ''}</td>
-                    <td>{p.onHand || 0}</td>
-                    <td>{p.taxGroup || ''}</td>
-                    <td>{p.custPartNo || ''}</td>
-                  </tr>
-                ))}
-                {filtered.length === 0 && (
-                  <tr>
-                    <td colSpan="8" className="text-center">No products found</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          {/* Add pagination here if needed, for now, it's just a placeholder */}
-          <div className="d-flex justify-content-between align-items-center mt-2">
-            <span>Page 1 of 1</span>
-            <button className="btn btn-secondary btn-sm" onClick={() => this.setState({ productOverlayVisible: false, selectedProductIds: [] })}>Cancel</button>
+            >
+              Add Selected
+            </button>
+            <i
+              className="mdi mdi-close-box-outline"
+              style={{ fontSize: "24px", color: "#2196F3", cursor: "pointer" }}
+              onClick={this.handleOverlayClose}
+              aria-label="Close"
+              type="button"
+            ></i>
           </div>
         </div>
+        {/* Search */}
+        <input
+          type="text"
+          className="form-control mb-2"
+          placeholder="Search products..."
+          value={productOverlaySearch}
+          onChange={e => this.setState({ productOverlaySearch: e.target.value, currentPage: 1 })}
+        />
+        {/* Table in scrollable area */}
+        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+          <table className="table table-bordered table-sm mb-0">
+            <thead>
+              <tr>
+                <th></th>
+                <th>Item Code</th>
+                <th>Item Desc</th>
+                <th>Item Type</th>
+                <th>Material Type</th>
+                <th>On Hand</th>
+                <th>Tax Grp</th>
+                <th>Cust Part No</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginated.map(p => (
+                <tr key={p.id}>
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={selectedProductIds.includes(p.id)}
+                      onChange={e => {
+                        const checked = e.target.checked;
+                        this.setState(prev => ({
+                          selectedProductIds: checked
+                            ? [...prev.selectedProductIds, p.id]
+                            : prev.selectedProductIds.filter(id => id !== p.id)
+                        }));
+                      }}
+                    />
+                  </td>
+                  <td>{p.productId}</td>
+                  <td>{p.ptdescription || ''}</td>
+                  <td>{p.itemType || ''}</td>
+                  <td>{p.materialType || ''}</td>
+                  <td>{p.onHand || 0}</td>
+                  <td>{p.taxGroup || ''}</td>
+                  <td>{p.custPartNo || ''}</td>
+                </tr>
+              ))}
+              {paginated.length === 0 && (
+                <tr>
+                  <td colSpan="8" className="text-center">No products found</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        {/* Pagination at the bottom */}
+        <nav aria-label="Product pagination example" style={{ marginTop: 12 }}>
+          <ul className="pagination justify-content-end mb-0">
+            <li className={`page-item ${currentPage === 1 ? "disabled" : ""}`}>
+              <button
+                className="page-link"
+                aria-label="Previous"
+                onClick={() => this.setState({ currentPage: Math.max(currentPage - 1, 1) })}
+              >
+                <span aria-hidden="true">&laquo;</span>
+              </button>
+            </li>
+            {[...Array(totalPages)].map((_, idx) => (
+              <li key={idx} className={`page-item ${currentPage === idx + 1 ? "active" : ""}`}>
+                <button
+                  className="page-link"
+                  onClick={() => this.setState({ currentPage: idx + 1 })}
+                >
+                  {idx + 1}
+                </button>
+              </li>
+            ))}
+            <li className={`page-item ${currentPage === totalPages ? "disabled" : ""}`}>
+              <button
+                className="page-link"
+                aria-label="Next"
+                onClick={() => this.setState({ currentPage: Math.min(currentPage + 1, totalPages) })}
+              >
+                <span aria-hidden="true">&raquo;</span>
+              </button>
+            </li>
+          </ul>
+        </nav>
       </div>
-    );
-  };
+    </div>
+  );
+};
 
   renderorderTable = () => (
     <div className="card mt-4 full-height">
       <div className="card-body">
-        <div className="d-flex justify-content-between align-items-center mb-3">
-          <h4 className="card-title">Orders</h4>
-          <button className="btn btn-primary" onClick={() => this.setState({ showForm: true })}>+ Add Order</button>
-        </div>
+       <div className="d-flex justify-content-between align-items-center mb-3">
+  <h4 className="card-title mb-0">Customer Orders</h4>
+
+  <div className="d-flex align-items-center" style={{ gap: '10px', width: '40%' }}>
+    <input
+      type="text"
+      className="form-control"
+      placeholder="Search by Bill No, Customer, Status, Date..."
+      value={this.state.searchTerm}
+      onChange={(e) => this.setState({ searchTerm: e.target.value })}
+    />
+    <button
+    type="button"
+      className="btn btn-primary"
+      onClick={() => this.setState({ showForm: true })}
+    >
+     Create
+    </button>
+  </div>
+</div>
+
         <div className="table-responsive">
           <table className="table table-bordered table-hover">
             <thead className="thead-light">
@@ -1542,6 +1628,7 @@ const filtered = filteredProducts.filter(p =>
                 <th>Order No</th>
                 <th>Customer</th>
                 <th>Date</th>
+                <th>Ref No</th>
                 <th>Order Value</th>
                 <th>After Discount</th>
                 <th>Status</th>
@@ -1549,11 +1636,24 @@ const filtered = filteredProducts.filter(p =>
               </tr>
             </thead>
             <tbody>
-              {this.state.orders.map((q, i) => {
+              {this.state.orders
+              .filter((q)=>{
+                 const term = this.state.searchTerm.toLowerCase();
+                 if (!term) return true;
+                 return (
+                  (q.orderNo || "").toLowerCase().includes(term) ||
+                  (q.customer || "").toLowerCase().includes(term) ||
+                  (q.status || "").toLowerCase().includes(term) ||
+                  (q.orderDate || "").toLowerCase().includes(term) ||
+                  (q.qrefNo || "").toLowerCase().includes(term) ||
+                  (q.orderValue?.toString() || "").toLowerCase().includes(term) ||
+                  (q.afterDiscountValue?.toString() || "").toLowerCase().includes(term)
+                 );
+                }).map((q, i) => {
+
                 let statusClass = "badge-secondary";
                 if( q.status === "Awaiting for Approval") statusClass="badge-warning";
-                else if(q.status === "ConvertedToOrder") statusClass="badge-info";
-                else if(q.status === "COCreated") statusClass="badge-secondary";
+                else if(q.status === "CO Created") statusClass="badge-secondary";
                 else if(q.status === "Approved") statusClass="badge-success";
                 else if(q.status === "Rejected") statusClass="badge-danger";
 
@@ -1569,6 +1669,7 @@ const filtered = filteredProducts.filter(p =>
                   </td>
                   <td>{q.customer}</td>
                   <td>{q.orderDate}</td>
+                  <td>{q.qrefNo}</td>
                   <td>{q.orderValue}</td>
                   <td>{q.afterDiscountValue}</td>
                   <td>
@@ -1707,7 +1808,7 @@ const filtered = filteredProducts.filter(p =>
                           checked={formData.choose === 'Bundle'}
                           onChange={e => this.handleChooseChange(e.target.value)}
                         />
-                        <label className="form-check-label" htmlFor="chooseBundle">Bundle (Service+Product)</label>
+                        <label className="form-check-label" htmlFor="chooseBundle">Service+Product</label>
                       </div>
                     </div>
                   </div>
@@ -1985,14 +2086,15 @@ const filtered = filteredProducts.filter(p =>
               </div>
 
              <div className="fixed-card-footer text-right p-3 border-top bg-white">
-                <button type="submit" className="btn btn-success mr-2" disabled={!this.isBreakdownValid()}>Save All Details</button>
                 <button
                   type="button"
-                  className="btn btn-secondary"
+                  className="btn btn-secondary mr-2"
                   onClick={() => this.setState({ showForm: false, editingId: null })}
                 >
                   Cancel
                 </button>
+   <button type="submit" className="btn btn-success " disabled={!this.isBreakdownValid()}>Save All Details</button>
+
               </div>
             </form>
             {overlayType && this.renderOverlay()}

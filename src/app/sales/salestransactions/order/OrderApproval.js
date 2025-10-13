@@ -26,6 +26,11 @@ class OrderApproval extends Component {
   try {
     const snap = await getDocs(collection(db, "orders"));
     const orders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    orders.sort((a,b)=>{
+      const dateA = new Date(a.orderDate || a.createdAt?.toDate?.() || a.createdAt || 0);
+      const dateB = new Date(b.orderDate || b.createdAt?.toDate?.() || b.createdAt || 0);
+      return dateB - dateA;
+    });
     this.setState({ orders, loading: false });
     console.log("Fetched orders ids:", orders.map(o => o.id));
   } catch (err) {
@@ -144,40 +149,27 @@ handleEditSubmit = async (e) => {
     this.setState({ selectedOrder: null, previewMode: false });
   };
 
-updateStatus = async (id, status, rejectReason = "") => {
-  console.log("updateStatus called:", { id, status, rejectReason });
-  if (!id) return alert("Missing order id — cannot update");
-
+updateStatus = async (orderNo, status, rejectReason = "") => {
   this.setState({ loading: true, error: null });
   try {
-    const ref = doc(db, "orders", id);
-    const snap = await getDoc(ref);
-
-    if (!snap.exists()) {
-      const q = query(collection(db, "orders"), where("orderNo", "==", id));
-      const found = await getDocs(q);
-      if (!found.empty) {
-        const realId = found.docs[0].id;
-        console.log("Found by orderNo, using id:", realId);
-        await updateDoc(doc(db, "orders", realId), { status, rejectReason });
-      } else {
-        this.setState({ loading: false });
-        return alert(`No order found with id or orderNo "${id}".`);
-      }
+    // Always find by orderNo
+    const q = query(collection(db, "orders"), where("orderNo", "==", orderNo));
+    const found = await getDocs(q);
+    if (!found.empty) {
+      const realId = found.docs[0].id;
+      await updateDoc(doc(db, "orders", realId), { status, rejectReason });
+      alert(`Order ${status}`);
+      await this.fetchOrders();
+      this.setState({ selectedOrder: null, previewMode: false, showRejectDialog: false, rejectReason: "", loading: false });
     } else {
-      await updateDoc(ref, { status, rejectReason });
+      this.setState({ loading: false });
+      return alert(`No order found with orderNo "${orderNo}".`);
     }
-
-    alert(`Order ${status}`);
-    await this.fetchOrders();
-    this.setState({ selectedOrder: null, previewMode: false, showRejectDialog: false, rejectReason: "", loading: false });
   } catch (err) {
-    console.error("updateStatus error:", err);
     this.setState({ error: err.message, loading: false });
     alert("Error updating status: " + err.message);
   }
 };
-
 
 
   openRejectDialog = () => {
@@ -198,7 +190,7 @@ updateStatus = async (id, status, rejectReason = "") => {
       alert("Please enter a reason for rejection.");
       return;
     }
-    this.updateStatus(selectedOrder.id, "Rejected", rejectReason);
+    this.updateStatus(selectedOrder.orderNo, "Rejected", rejectReason);
   };
 
   showOrderPDFWithOrg = async (order) => {
@@ -502,6 +494,7 @@ renderOrderTable = () => {
                 <th>Order No</th>
                 <th>Customer</th>
                 <th>Date</th>
+                <th>Ref No</th>
                 <th>Order Value</th>
                 <th>Status</th>
                 <th>Reject Reason</th>
@@ -529,6 +522,7 @@ renderOrderTable = () => {
                     </td>
                     <td>{o.customer}</td>
                     <td>{o.orderDate}</td>
+                    <td>{o.qRefNo}</td>
                     <td>{o.orderValue}</td>
                     <td>
                       <label
@@ -556,7 +550,139 @@ renderOrderTable = () => {
     </div>
   );
 };
+// ...existing code...
 
+renderEditForm = () => {
+  const { editFormData, customers, products, taxGroups } = this.state;
+  if (!editFormData) return null;
+
+  return (
+    <div className="card mt-4 p-4 shadow-sm full-height d-flex flex-column">
+      <h4>Edit Order - {editFormData.orderNo}</h4>
+      <form onSubmit={this.handleEditSubmit}>
+        <div className="form-row">
+          <div className="form-group col-md-3">
+            <label>Order No</label>
+            <input
+              type="text"
+              className="form-control"
+              value={editFormData.orderNo}
+              readOnly
+            />
+          </div>
+          <div className="form-group col-md-3">
+            <label>Order Date</label>
+            <input
+              type="date"
+              className="form-control"
+              value={editFormData.orderDate}
+              onChange={e => this.handleEditInputChange("orderDate", e.target.value)}
+            />
+          </div>
+          <div className="form-group col-md-3">
+            <label>Customer</label>
+            <input
+              type="text"
+              className="form-control"
+              value={editFormData.customer}
+              onChange={e => this.handleEditInputChange("customer", e.target.value)}
+            />
+          </div>
+          <div className="form-group col-md-3">
+            <label>Status</label>
+            <input
+              type="text"
+              className="form-control"
+              value={editFormData.status}
+              readOnly
+            />
+          </div>
+        </div>
+        <div className="form-row">
+          <div className="form-group col-md-3">
+            <label>Ref No</label>
+            <input
+              type="text"
+              className="form-control"
+              value={editFormData.qRefNo}
+              onChange={e => this.handleEditInputChange("qRefNo", e.target.value)}
+            />
+          </div>
+          <div className="form-group col-md-3">
+            <label>Currency</label>
+            <input
+              type="text"
+              className="form-control"
+              value={editFormData.currency}
+              onChange={e => this.handleEditInputChange("currency", e.target.value)}
+            />
+          </div>
+          <div className="form-group col-md-3">
+            <label>Order Value</label>
+            <input
+              type="number"
+              className="form-control"
+              value={editFormData.orderValue}
+              readOnly
+            />
+          </div>
+          <div className="form-group col-md-3">
+            <label>Tax Amount</label>
+            <input
+              type="number"
+              className="form-control"
+              value={editFormData.taxAmount}
+              readOnly
+            />
+          </div>
+        </div>
+        <h5 className="mt-3">Line Items</h5>
+        <table className="table table-bordered table-sm">
+          <thead className="thead-light">
+            <tr>
+              <th>Item Code</th>
+              <th>Description</th>
+              <th>Qty</th>
+              <th>Unit Price</th>
+              <th>Tax Amount</th>
+              <th>Item Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {editFormData.lineItems?.map((item, idx) => (
+              <tr key={idx}>
+                <td>{item.itemCode}</td>
+                <td>{item.itemDescription}</td>
+                <td>
+                  <input
+                    type="number"
+                    value={item.qty}
+                    onChange={e => this.handleEditLineItemChange(idx, "qty", e.target.value)}
+                    style={{ width: 80 }}
+                  />
+                </td>
+                <td>
+                  <input
+                    type="number"
+                    value={item.unitPrice}
+                    onChange={e => this.handleEditLineItemChange(idx, "unitPrice", e.target.value)}
+                    style={{ width: 80 }}
+                  />
+                </td>
+                <td>{item.taxAmt}</td>
+                <td>{item.itemTotal}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div className="mt-3 text-right">
+          <button type="submit" className="btn btn-success mr-2">Save</button>
+          <button type="button" className="btn btn-secondary" onClick={this.closeEditForm}>Cancel</button>
+        </div>
+      </form>
+    </div>
+  );
+};
   renderOrderPreview = () => {
     const o = this.state.selectedOrder;
     if (!o) return null;
@@ -656,7 +782,7 @@ renderOrderTable = () => {
             className="btn btn-success"
             onClick={() => {
             console.log("Approve clicked for order:", o);
-            this.updateStatus(o.id, "Approved");
+            this.updateStatus(o.orderNo, "Approved");
           }}
             disabled={o.status !== "Awaiting for Approval"}
           >

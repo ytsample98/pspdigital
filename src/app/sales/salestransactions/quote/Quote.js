@@ -8,13 +8,8 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { recalculateTotals,getTaxDetailsFromGroup} from '../calculation';
 import { toWords } from 'number-to-words';
-
-
 const amount = 12345678;
 const amountWords = `INR ${toWords(amount)} Only`;
-
-console.log(amountWords);
-
 
 class Quote extends Component {
   state = {
@@ -43,6 +38,7 @@ class Quote extends Component {
     breakdownSelectAll: false,
     showSubProductDialog: false,
     currentBreakdownIdx: null,
+     searchTerm:'',
     subProductForm: { name: '', value: '', type: 'Amount', dueDate: '' },
     formData: {
       quoteNo: '',
@@ -73,6 +69,16 @@ class Quote extends Component {
   };
   customerInputRef = React.createRef();
 
+handleOverlayClose = () => {
+  this.setState({
+    overlayType: '',
+    overlaySearch: '',
+    productOverlayVisible: false,
+    showTaxOverlay: false,
+    currentTaxLineIdx: null,
+    selectedProductIds: [],
+  });
+};
   recalculateQuoteTotals = () => {
   const { lineItems, discountPercent } = this.state.formData;
   let quoteValue = 0;
@@ -81,7 +87,8 @@ class Quote extends Component {
     quoteValue += parseFloat(item.itemTotal || 0);
     taxAmount += parseFloat(item.taxAmt || 0);
   });
-  const discountAmount = (parseFloat(quoteValue) * parseFloat(discountPercent || 0)) / 100;
+  const discountPercentNum = parseFloat(discountPercent || 0);
+  const discountAmount = (parseFloat(quoteValue) * discountPercentNum) / 100;
   const afterDiscountValue = quoteValue - discountAmount;
   this.setState(prev => ({
     formData: {
@@ -197,6 +204,11 @@ fetchTaxGroups = async () => {
   fetchQuotes = async () => {
     const snap = await getDocs(collection(db, 'quotes'));
     const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    data.sort((a,b)=>{
+      const dateA=new Date(a.quoteDate || a.createdAt?.toDate?.() || a.createdAt || 0);
+      const dateB=new Date(b.quoteDate || b.createdAt?.toDate?.() || b.createdAt || 0);
+      return dateA - dateB;
+    });
     this.setState({ quotes: data.reverse() });
   };
 
@@ -454,13 +466,28 @@ showQuotePDFWithOrg = async (quote) => {
   });
 
   // 3. Subtotal (without tax)
+  const total= enrichedItems.reduce((sum, item) => sum + (parseFloat(item.itemTotal) || 0), 0);
   const subtotal = enrichedItems.reduce((sum, item) => sum + ((parseFloat(item.unitPrice) || 0) * (parseFloat(item.qty) || 0)), 0);
   const freightCharges = parseFloat(quote.freightCharges || 0);
   const freightTax = parseFloat(quote.freighttaxAmount || 0);
   const totalTaxAmount = parseFloat(quote.taxAmount || 0);
   const grandTotal = parseFloat(quote.quoteValue || (subtotal + totalTaxAmount));
+  const afterDiscountValue= parseFloat(quote.afterDiscountValue || grandTotal);
   const amountWords = `INR ${toWords(Math.floor(grandTotal))} Only`;
+  const isINR = (quote.currency || 'INR') === 'INR';
+const conversionRate = parseFloat(quote.conversionRate || 1);
+const convert = (val) => {
+  if (val === undefined || val === null || isNaN(val)) return 0;
+  const num = parseFloat(val);
+  return isINR ? num : num * conversionRate;
+};
 
+const subtotalConv = convert(subtotal);
+const freightChargesConv = convert(freightCharges);
+const taxAmountConv = convert(totalTaxAmount);
+const discountAmountConv = convert(quote.discountAmount || 0);
+const grandTotalConv = convert(quote.afterDiscountValue || grandTotal);
+  
   // 4. Tax breakdown by group
   let taxBreakdown = {};
   let taxGroupDetails = [];
@@ -488,40 +515,6 @@ showQuotePDFWithOrg = async (quote) => {
         });
       }
     });
-    // Legacy support for cgst/sgst/igst
-    if (item.cgst) {
-      const key = `CGST ${item.cgst}%`;
-      const taxAmt = (base * item.cgst) / 100;
-      taxBreakdown[key] = (taxBreakdown[key] || 0) + taxAmt;
-      taxGroupDetails.push({
-        sno: sno++,
-        group: key,
-        peramt: `${item.cgst}%`,
-        taxAmt: taxAmt.toFixed(2)
-      });
-    }
-    if (item.sgst) {
-      const key = `SGST ${item.sgst}%`;
-      const taxAmt = (base * item.sgst) / 100;
-      taxBreakdown[key] = (taxBreakdown[key] || 0) + taxAmt;
-      taxGroupDetails.push({
-        sno: sno++,
-        group: key,
-        peramt: `${item.sgst}%`,
-        taxAmt: taxAmt.toFixed(2)
-      });
-    }
-    if (item.igst) {
-      const key = `IGST ${item.igst}%`;
-      const taxAmt = (base * item.igst) / 100;
-      taxBreakdown[key] = (taxBreakdown[key] || 0) + taxAmt;
-      taxGroupDetails.push({
-        sno: sno++,
-        group: key,
-        peramt: `${item.igst}%`,
-        taxAmt: taxAmt.toFixed(2)
-      });
-    }
   });
   if (freightTax > 0) {
     taxBreakdown["Freight Tax"] = freightTax;
@@ -542,6 +535,12 @@ showQuotePDFWithOrg = async (quote) => {
   container.style.width = '794px';
   container.style.padding = '40px';
   container.style.fontFamily = 'Arial';
+
+    // --- before table start ---
+
+
+const numCols = isINR ? 8 : 7; // dynamic columns (extra GST for INR)
+
 
   // 7. Main PDF content
   container.innerHTML = `
@@ -594,62 +593,69 @@ showQuotePDFWithOrg = async (quote) => {
       </div>
     </div>
 
-    <table style="width:100%; border-collapse:collapse; margin-top:20px; font-size:10px;">
-      <thead>
-        <tr style="background:#f4f6fa;">
-          <th style="border:1px solid #011b56;">Item Code</th>
-          <th style="border:1px solid #011b56;">Description</th>
-          <th style="border:1px solid #011b56;">HSN</th>
-          <th style="border:1px solid #011b56;">UOM</th>
-          <th style="border:1px solid #011b56;">Qty</th>
-          <th style="border:1px solid #011b56;">Unit Price</th>
-          <th style="border:1px solid #011b56;">GST%</th>
-          <th style="border:1px solid #011b56;">Item Total</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${enrichedItems.map(item => {
-          const gstLabel = (item.taxGroupNames && item.taxGroupNames.length)
-            ? item.taxGroupNames.join(', ')
-            : (item.taxGroupName || item.taxId || '-');
-          return `
-            <tr>
-              <td style="border:1px solid #011b56;">${item.itemCode}</td>
-              <td style="border:1px solid #011b56;">${item.itemDescription}</td>
-              <td style="border:1px solid #011b56;">${item.hsnCode}</td>
-              <td style="border:1px solid #011b56;">${item.uom}</td>
-              <td style="border:1px solid #011b56;">${item.qty}</td>
-              <td style="border:1px solid #011b56;">${item.unitPrice}</td>
-              <td style="border:1px solid #011b56;">${gstLabel}</td>
-              <td style="border:1px solid #011b56;">${item.total}</td>
-            </tr>`;
-        }).join('')}
-        <tr>
-          <td colspan="7" style="text-align:right; border:1px solid #011b56;"><b>Subtotal</b></td>
-          <td style="border:1px solid #011b56;"><b>${subtotal.toFixed(2)}</b></td>
-      </tr>
-        
-          <td colspan="7" style="text-align:right; border:1px solid #011b56;"><b>Total Tax Amount</b></td>
-          <td style="border:1px solid #011b56;"><b>${totalTaxAmount.toFixed(2)}</b></td>
-        </tr>
-        <tr>
-  <td colspan="7" style="text-align:right; border:1px solid #011b56;"><b>Discount Amount</b></td>
-  <td style={{ border: "1px solid #011b56" }}>
-  <b>{(quote.discountAmount ?? 0).toFixed(2)}</b>
-</td>
 
-</tr>
+<table style="width:100%; border-collapse:collapse; font-size:12px; border:1px solid #011b56;">
+  <thead>
+    <tr style="background-color:#f0f0f0; text-align:center;">
+      <th style="border:1px solid #011b56;">Item Code</th>
+      <th style="border:1px solid #011b56;">Description</th>
+      <th style="border:1px solid #011b56;">HSN</th>
+      <th style="border:1px solid #011b56;">UOM</th>
+      <th style="border:1px solid #011b56;">Qty</th>
+      <th style="border:1px solid #011b56;">Unit Price</th>
+      ${isINR ? `<th style="border:1px solid #011b56;">GST%</th>` : ''}
+      <th style="border:1px solid #011b56;">Item Total</th>
+    </tr>
+  </thead>
 
+  <tbody>
+    ${enrichedItems.map(item => {
+      const gstLabel = (item.taxGroupNames && item.taxGroupNames.length)
+        ? item.taxGroupNames.join(', ')
+        : (item.taxGroupName || item.taxId || '-');
+
+      const rawTotal = item.total ? item.total : (item.qty && item.unitPrice ? item.qty * item.unitPrice : 0);
+
+      return `
         <tr>
-  <td colspan="7" style="text-align:right; border:1px solid #011b56;"><b>Grand Total</b></td>
-  <td style="border:1px solid #011b56;"><b>${(quote.afterDiscountValue || grandTotal).toFixed(2)}</b></td>
-</tr>
+          <td style="border:1px solid #011b56;">${item.itemCode || '-'}</td>
+          <td style="border:1px solid #011b56;">${item.itemDescription || '-'}</td>
+          <td style="border:1px solid #011b56;">${item.hsnCode || '-'}</td>
+          <td style="border:1px solid #011b56;">${item.uom || '-'}</td>
+          <td style="border:1px solid #011b56;">${item.qty || 0}</td>
+          <td style="border:1px solid #011b56;">${convert(item.unitPrice).toFixed(2)}</td>
+          ${isINR ? `<td style="border:1px solid #011b56;">${gstLabel}</td>` : ''}
+          <td style="border:1px solid #011b56;">${convert(total).toFixed(2)}</td>
+        </tr>`;
+    }).join('')}
+  </tbody>
 
-      </tbody>
-    </table>
-    <div style="margin-top:8px; font-size:11px;"><b>Amount in Words:</b> ${amountWords}</div>
-    <div style="margin-top:20px; text-align:right; font-size:10px;">Printed on ${new Date().toLocaleString()}</div>
-  `;
+  <tfoot>
+    <tr>
+      <td colspan="${numCols - 1}" style="text-align:right; border:1px solid #011b56;"><b>Subtotal</b></td>
+      <td style="border:1px solid #011b56;"><b>${convert(subtotal).toFixed(2)}</b></td>
+    </tr>
+
+    ${convert(totalTaxAmount) > 0 ? `
+      <tr>
+        <td colspan="${numCols - 1}" style="text-align:right; border:1px solid #011b56;"><b>Total Tax Amount</b></td>
+        <td style="border:1px solid #011b56;"><b>${convert(totalTaxAmount).toFixed(2)}</b></td>
+      </tr>` : ''}
+
+    ${Number(convert(quote.discountAmount || 0)) > 0 ? `
+      <tr>
+        <td colspan="${numCols - 1}" style="text-align:right; border:1px solid #011b56;"><b>Discount Amount</b></td>
+        <td style="border:1px solid #011b56;"><b>${Number(convert(quote.discountAmount || 0)).toFixed(2)}</b></td>
+      </tr>` : ''}
+
+    <tr>
+      <td colspan="${numCols - 1}" style="text-align:right; border:1px solid #011b56;"><b>Grand Total</b></td>
+      <td style="border:1px solid #011b56;"><b>${convert(grandTotal || afterDiscountValue || 0).toFixed(2)}</b></td>
+    </tr>
+  </tfoot>
+</table>
+`
+
 
   document.body.appendChild(container);
   const canvas = await html2canvas(container, { scale: 2, useCORS: true });
@@ -701,64 +707,41 @@ if (breakdownItems && breakdownItems.length > 0) {
   `;
 }).join('');
 
+let taxRows = taxGroupDetails.map(row => `
+  <tr>
+    <td style="border:1px solid #011b56;">${row.sno}</td>
+    <td style="border:1px solid #011b56;">${row.group}</td>
+    <td style="border:1px solid #011b56;">${row.peramt}</td>
+    <td style="border:1px solid #011b56;">${convert(row.taxAmt).toFixed(2)}</td>
+  </tr>
+`).join('');
 
-  let taxRows = taxGroupDetails.map(row => {
-  return `
-    <tr>
-      <td style="border:1px solid #011b56;">${row.sno}</td>
-      <td style="border:1px solid #011b56;">${row.group}</td>
-      <td style="border:1px solid #011b56;">${row.peramt}</td>
-      <td style="border:1px solid #011b56;">${row.taxAmt}</td>
-    </tr>
-  `;
-}).join('');
-
-
-  let combinedHtml = `
-    <div style="font-family:Arial; padding:40px; width:100%;">
-      <h3 style="margin-bottom:10px; font-size:16px;">Milestone Breakdown</h3>
-      <table style="width:100%; border-collapse:collapse; margin-top:20px; font-size:10px;">
-        <thead>
-          <tr style="background:#f4f6fa;">
-            <th style="border:1px solid #011b56;">S.No</th>
-            <th style="border:1px solid #011b56;">Item ID</th>
-            <th style="border:1px solid #011b56;">Desc</th>
-            <th style="border:1px solid #011b56;">${breakdownType}</th>
-            <th style="border:1px solid #011b56;">Due Date</th>
-            <th style="border:1px solid #011b56;">Item Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${milestoneRows}
-        </tbody>
-      </table>
-      <h3 style="margin-bottom:10px; margin-top:30px; font-size:16px;">Tax Breakdown</h3>
-      <table style="width:100%; border-collapse:collapse; margin-top:20px; font-size:10px;">
-        <thead>
-          <tr style="background:#f4f6fa;">
-            <th style="border:1px solid #011b56;">S.No</th>
-            <th style="border:1px solid #011b56;">Tax Group</th>
-            <th style="border:1px solid #011b56;">Per/Amt</th>
-            <th style="border:1px solid #011b56;">Tax Amt</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${taxRows}
-          <tr>
-            <td colspan="3" style="text-align:right; border:1px solid #011b56;"><b>Total Tax Amount</b></td>
-            <td style="border:1px solid #011b56;"><b>${totalTaxAmount.toFixed(2)}</b></td>
-          </tr>
-          <tr>
-  <td style="border:1px solid #011b56;"></td>
-  <td style="border:1px solid #011b56;">Discount</td>
-  <td style="border:1px solid #011b56;">${quote.discountPercent || 0}%</td>
-  <td style="border:1px solid #011b56;">${(quote.discountAmount || 0).toFixed(2)}</td>
-</tr>
-
-        </tbody>
-      </table>
-    </div>
-  `;
+let combinedHtml = `
+  <div style="font-family:Arial; padding:40px; width:100%;">
+    <h2 style="margin-bottom:20px; font-size:20px;">Tax Breakdown</h2>
+    <table style="width:100%; border-collapse:collapse; margin-top:20px; font-size:13px;">
+      <thead>
+        <tr style="background:#f4f6fa;">
+          <th style="border:1px solid #011b56;">S.No</th>
+          <th style="border:1px solid #011b56;">Tax Group</th>
+          <th style="border:1px solid #011b56;">Per/Amt</th>
+          <th style="border:1px solid #011b56;">Tax Amt</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${taxRows}
+        <tr>
+          <td colspan="3" style="text-align:right; border:1px solid #011b56;"><b>Total Tax Amount</b></td>
+          <td style="border:1px solid #011b56;"><b>${taxAmountConv.toFixed(2)}</b></td>
+        </tr>
+        <tr>
+          <td colspan="3" style="text-align:right; border:1px solid #011b56;"><b>Discount Amount</b></td>
+          <td style="border:1px solid #011b56;"><b>${discountAmountConv.toFixed(2)}</b></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+`;
 
   const combinedContainer = document.createElement('div');
   combinedContainer.id = 'pdf-preview-container';
@@ -799,82 +782,35 @@ if (breakdownItems && breakdownItems.length > 0) {
   showOverlay = (type) => this.setState({ overlayType: type, overlaySearch: '' });
   hideOverlay = () => this.setState({ overlayType: '', overlaySearch: '' });
 
-
-  selectOverlayValue = (value) => {
-    if (this.state.overlayType === 'customer') {
-      this.setState(prev => ({
-        formData: {
-          ...prev.formData,
-          customer: value.custname || value.custcode || '', // Use custname or custcode
-          billTo: this.formatAddress(value.billTo),
-          shipTo: this.formatAddress(value.shipTo),
-          currency: value.currency || '',
-          // despatchMode: value.despatchMode || '', // No auto-fill for despatch mode
-          // paymentTerms: value.paymentTerms || '' // No auto-fill for payment terms
-        },
-        overlayType: '',
-        overlaySearch: ''
-      }), () => {
-        if (this.customerInputRef.current) {
-          this.customerInputRef.current.value = value.custname || value.custcode || '';
-        }
-      });
+selectOverlayValue = async (value) => {
+  if (this.state.overlayType === 'customer') {
+    // Fetch conversion rate from Firestore
+    let conversionRate = '';
+    if (value.currency && value.currency !== 'INR') {
+      const snap = await getDocs(collection(db, 'currencies'));
+      const currencies = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const cur = currencies.find(c => c.code === value.currency);
+      conversionRate = cur ? cur.conversionRate : '';
     }
-  };
-renderTaxOverlay = () => {
-  const { taxGroups, currentTaxLineIdx, formData } = this.state;
-  if (currentTaxLineIdx === null) return null;
-
-  const item = formData.lineItems[currentTaxLineIdx];
-  const selected = new Set(item.taxGroupNames || []);
-
-  return (
-    <div style={{
-      position: 'fixed', zIndex: 1000, top: '18%', left: '20%',
-      background: '#fff', border: '1px solid #ccc', padding: '20px',
-      boxShadow: '0 0 10px rgba(0,0,0,0.3)', width: '70%',
-      maxHeight: '70vh', overflowY: 'auto'
-    }}>
-      <h5 style={{ color: '#2196F3', marginBottom: '16px' }}>Select Tax Groups</h5>
-      <table className="table table-sm table-bordered">
-        <thead style={{ background: '#f4f6fa' }}>
-          <tr>
-            <th></th>
-            <th>Group</th>
-            <th>Components</th>
-            <th>Type</th>
-            <th>% / Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          {taxGroups.map(tg => (
-            <tr key={tg.groupName}>
-              <td>
-                <input
-                  type="checkbox"
-                  checked={selected.has(tg.groupName)}
-                  onChange={e =>
-                    this.toggleTaxGroupSelection(tg.groupName, currentTaxLineIdx, e.target.checked)
-                  }
-                />
-              </td>
-              <td style={{ fontWeight: 'bold', color: '#2196F3' }}>{tg.groupName}</td>
-              <td>{tg.lineItems.map(li => li.component).join(', ')}</td>
-              <td>{tg.lineItems.map(li => li.type).join(', ')}</td>
-              <td>{tg.lineItems.map(li => li.percentOrAmt).join(', ')}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <div className="text-right mt-3">
-        <button className="btn btn-sm btn-success" onClick={() => this.setState({ showTaxOverlay: false })}>
-          Done
-        </button>
-      </div>
-    </div>
-  );
+    this.setState(prev => ({
+      formData: {
+        ...prev.formData,
+        customer: value.custname || value.custcode || '', 
+        billTo: this.formatAddress(value.billTo),
+        shipTo: this.formatAddress(value.shipTo),
+        currency: value.currency || '',
+        conversionRate: conversionRate,
+      },
+      overlayType: '',
+      overlaySearch: ''
+    }), () => {
+      if (this.customerInputRef.current) {
+        this.customerInputRef.current.value = value.custname || value.custcode || '';
+      }
+    });
+  }
 };
- renderOverlay = () => {
+renderOverlay = () => {
   const { overlayType, overlaySearch, customers, despatchModes, paymentTerms } = this.state;
 
   const getFilteredRows = (list, nameKey = 'name', codeKey = 'shortName') =>
@@ -930,7 +866,16 @@ renderTaxOverlay = () => {
   return (
     <div className="custom-overlay">
       <div className="custom-overlay-content">
-        <div className="custom-overlay-title">{title}</div>
+        <div className="d-flex justify-content-between align-items-center mb-2">
+          <div className="custom-overlay-title">{title}</div>
+          <i className="mdi mdi-close-box-outline"
+          style={{ fontSize: "24px", color: "#2196F3", cursor: "pointer" }} 
+            onClick={this.handleOverlayClose}
+            aria-label="Close"
+            type="button"
+          >
+          </i>
+        </div>
         <input
           type="text"
           className="form-control mb-2"
@@ -968,7 +913,6 @@ renderTaxOverlay = () => {
             </tbody>
           </table>
         </div>
-        <button className="btn btn-secondary btn-sm mt-2" onClick={this.hideOverlay}>Cancel</button>
       </div>
     </div>
   );
@@ -977,88 +921,81 @@ renderTaxOverlay = () => {
 renderProductOverlay = () => {
   const { filteredProducts, productOverlaySearch, selectedProductIds, currentPage = 1 } = this.state;
 
-  const firstPageSize = 10;
-  const otherPageSize = 5;
-
-  let pageSizes = [];
-  if (filteredProducts.length > 0) {
-    pageSizes.push(firstPageSize); // first page
-    let remaining = filteredProducts.length - firstPageSize;
-    while (remaining > 0) {
-      pageSizes.push(Math.min(otherPageSize, remaining));
-      remaining -= otherPageSize;
-    }
-  }
-
-  const totalPages = pageSizes.length;
-  let indexOfFirstItem = 0;
-  let indexOfLastItem = 0;
-  if (currentPage === 1) {
-    indexOfFirstItem = 0;
-    indexOfLastItem = firstPageSize;
-  } else {
-    indexOfFirstItem = firstPageSize + (currentPage - 2) * otherPageSize;
-    indexOfLastItem = indexOfFirstItem + otherPageSize;
-  }
-
-  const currentItems = filteredProducts.slice(indexOfFirstItem, indexOfLastItem);
-
-  const filtered = currentItems.filter(p =>
+  const itemsPerPage = 10;
+  const filtered = filteredProducts.filter(p =>
     (p.ptshortName || '').toLowerCase().includes(productOverlaySearch.toLowerCase()) ||
     (p.ptdescription || '').toLowerCase().includes(productOverlaySearch.toLowerCase()) ||
     (p.itemCode || '').toLowerCase().includes(productOverlaySearch.toLowerCase())
   );
+  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+  const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   return (
     <div className="custom-overlay">
       <div className="custom-overlay-content">
         <div className="d-flex justify-content-between align-items-center mb-2">
-          <div className="custom-overlay-title">Select Products</div>
-          <button
-            className="btn btn-success btn-sm"
-            onClick={() => {
-              const selectedProducts = filteredProducts.filter(p => this.state.selectedProductIds.includes(p.id));
-              this.setState(prev => ({
-                formData: {
-                  ...prev.formData,
-                  lineItems: [
-                    ...prev.formData.lineItems,
-                    ...selectedProducts
-                      .filter(p => !prev.formData.lineItems.some(item => item.id === p.id))
-                      .map(p => ({
-                        id: p.id,
-                        itemCode: p.productId || '',
-                        itemDescription: p.ptdescription || '',
-                        itemType: p.itemType || '',
-                        materialType: p.materialType || '',
-                        onHand: p.onHand || 0,
-                        taxGroup: p.taxGroup || '',
-                        taxGroupName: p.taxGroup || '',
-                        custPartNo: p.custPartNo || '', 
-                        hsnCode: p.hsnCode || '',
-                        unitPrice: p.unitPrice || 0,
-                        qty: 1,
-                        total: (p.unitPrice || 0).toFixed(2)
-                      }))
-                  ]
-                },
-                productOverlayVisible: false,
-                selectedProductIds: []
-              }));
-            }}
-          >
-            Add Selected
-          </button>
-        </div>
+  <div className="custom-overlay-title">Select Products</div>
+  <div className="d-flex align-items-center">
+    <button
+      className="btn btn-primary btn-sm mr-2"
+      onClick={() => {
+        const selectedProducts = filteredProducts.filter(p =>
+          selectedProductIds.includes(p.id)
+        );
+        this.setState(prev => ({
+          formData: {
+            ...prev.formData,
+            lineItems: [
+              ...prev.formData.lineItems,
+              ...selectedProducts
+                .filter(p => !prev.formData.lineItems.some(item => item.id === p.id))
+                .map(p => ({
+                  id: p.id,
+                  itemCode: p.productId || '',
+                  itemDescription: p.ptdescription || '',
+                  itemType: p.itemType || '',
+                  materialType: p.materialType || '',
+                  onHand: p.onHand || 0,
+                  taxGroup: p.taxGroup || '',
+                  taxGroupName: p.taxGroup || '',
+                  custPartNo: p.custPartNo || '',
+                  hsnCode: p.hsnCode || '',
+                  unitPrice: p.unitPrice || 0,
+                  qty: 1,
+                  total: (p.unitPrice || 0).toFixed(2)
+                }))
+            ]
+          },
+          productOverlayVisible: false,
+          selectedProductIds: []
+        }));
+      }}
+      type="button"
+    >
+      Add Selected
+    </button>
+ 
+  <i
+    className="mdi mdi-close-box-outline"
+    style={{
+      fontSize: "24px",
+      color: "#2196F3",
+      cursor: "pointer",
+    }}
+    onClick={this.handleOverlayClose}
+    aria-label="Close"
+    type="button"
+  ></i>
+</div>
+</div>
 
         <input
           type="text"
           className="form-control mb-2"
           placeholder="Search products..."
           value={productOverlaySearch}
-          onChange={e => this.setState({ productOverlaySearch: e.target.value })}
+          onChange={e => this.setState({ productOverlaySearch: e.target.value, currentPage: 1 })}
         />
-
         <div style={{ flex: 1, overflowY: "auto" }}>
           <table className="table table-bordered table-sm">
             <thead>
@@ -1074,7 +1011,7 @@ renderProductOverlay = () => {
               </tr>
             </thead>
             <tbody>
-              {filtered.map(p => (
+              {paginated.map(p => (
                 <tr key={p.id}>
                   <td>
                     <input
@@ -1099,7 +1036,7 @@ renderProductOverlay = () => {
                   <td>{p.custPartNo || ''}</td>
                 </tr>
               ))}
-              {filtered.length === 0 && (
+              {paginated.length === 0 && (
                 <tr>
                   <td colSpan="8" className="text-center">No products found</td>
                 </tr>
@@ -1107,6 +1044,7 @@ renderProductOverlay = () => {
             </tbody>
           </table>
         </div>
+        {/* Pagination at bottom */}
         <nav aria-label="Product pagination example">
           <ul className="pagination justify-content-end">
             <li className={`page-item ${currentPage === 1 ? "disabled" : ""}`}>
@@ -1118,7 +1056,6 @@ renderProductOverlay = () => {
                 <span aria-hidden="true">&laquo;</span>
               </button>
             </li>
-
             {[...Array(totalPages)].map((_, idx) => (
               <li key={idx} className={`page-item ${currentPage === idx + 1 ? "active" : ""}`}>
                 <button
@@ -1129,7 +1066,6 @@ renderProductOverlay = () => {
                 </button>
               </li>
             ))}
-
             <li className={`page-item ${currentPage === totalPages ? "disabled" : ""}`}>
               <button
                 className="page-link"
@@ -1141,22 +1077,75 @@ renderProductOverlay = () => {
             </li>
           </ul>
         </nav>
-
-        <div className="d-flex justify-content-end mt-2">
-          <button
-            className="btn btn-secondary btn-sm"
-            onClick={() => this.setState({ productOverlayVisible: false, selectedProductIds: [] })}
-          >
-            Cancel
-          </button>
-        </div>
       </div>
     </div>
   );
 };
 
+// Tax overlay with cross close and Done at top-right
+renderTaxOverlay = () => {
+  const { taxGroups, currentTaxLineIdx, formData } = this.state;
+  if (currentTaxLineIdx === null) return null;
 
+  const item = formData.lineItems[currentTaxLineIdx];
+  const selected = new Set(item.taxGroupNames || []);
 
+  return (
+    <div className="custom-overlay">
+      <div className="custom-overlay-content">
+        <div className="d-flex justify-content-between align-items-center mb-2">
+          <div className="custom-overlay-title">Select Tax Groups</div>
+          <div>
+            <button
+              className="btn btn-primary btn-sm mr-2"
+              onClick={() => this.setState({ showTaxOverlay: false })}
+              type="button"
+            >
+              Submit
+            </button>
+            <i className="mdi mdi-close-box-outline"
+              style={{ fontSize: "24px", color: "#2196F3", cursor: "pointer" }} 
+              onClick={this.handleOverlayClose}
+              aria-label="Close"
+              type="button"
+            >
+            </i>
+          </div>
+        </div>
+        <table className="table table-sm table-bordered">
+          <thead style={{ background: '#f4f6fa' }}>
+            <tr>
+              <th></th>
+              <th>Group</th>
+              <th>Components</th>
+              <th>Type</th>
+              <th>% / Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {taxGroups.map(tg => (
+              <tr key={tg.groupName}>
+                <td>
+                  <input
+                    type="checkbox"
+                    checked={selected.has(tg.groupName)}
+                    onChange={e =>
+                      this.toggleTaxGroupSelection(tg.groupName, currentTaxLineIdx, e.target.checked)
+                    }
+                  />
+                </td>
+                <td>{tg.groupName}</td>
+                <td>{tg.lineItems.map(li => li.component).join(', ')}</td>
+                <td>{tg.lineItems.map(li => li.type).join(', ')}</td>
+                <td>{tg.lineItems.map(li => li.percentOrAmt).join(', ')}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
 
 addBreakdownFromLineItems = () => {
   const { formData, breakdownItems } = this.state;
@@ -1523,10 +1512,26 @@ handleAddSubProduct = () => {
   renderQuoteTable = () => (
     <div className="card mt-4 full-height">
       <div className="card-body">
-        <div className="d-flex justify-content-between align-items-center mb-3">
-          <h4 className="card-title">Quotes</h4>
-          <button className="btn btn-primary" onClick={() => this.setState({ showForm: true })}>+ Add Quote</button>
-        </div>
+       <div className="d-flex justify-content-between align-items-center mb-3">
+  <h4 className="card-title mb-0">Quotes</h4>
+
+  <div className="d-flex align-items-center" style={{ gap: '10px', width: '40%' }}>
+    <input
+      type="text"
+      className="form-control"
+      placeholder="Search by Bill No, Customer, Status, Date..."
+      value={this.state.searchTerm}
+      onChange={(e) => this.setState({ searchTerm: e.target.value })}
+    />
+    <button
+    type="button"
+      className="btn btn-primary"
+      onClick={() => this.setState({ showForm: true })}
+    >
+       Create
+    </button>
+  </div>
+</div>
         <div className="table-responsive">
           <table className="table table-bordered table-hover">
             <thead className="thead-light">
@@ -1541,16 +1546,25 @@ handleAddSubProduct = () => {
               </tr>
             </thead>
             <tbody>
-              {this.state.quotes.map((q, i) => {
-                let statusClass = "badge-secondary";
+              {this.state.quotes
+              .filter((q) =>{
+                const term =this.state.searchTerm.toLowerCase();
+                if(!term) return true;
+                return (
+                  (q.quoteNo || '').toLowerCase().includes(term) ||
+                  (q.customer || '').toLowerCase().includes(term) ||
+                  (q.status || '').toLowerCase().includes(term) ||
+                  (q.quoteDate || '').toLowerCase().includes(term) ||
+                  (q.quoteValue?.toString() || '').toLowerCase().includes(term) ||
+                  (q.afterDiscountValue?.toString() || '').toLowerCase().includes(term) 
+                );
+              })
+              .map((q, i) => {
+                let statusClass = "badge-info";
                 if (q.status === "Awaiting for Approval") statusClass = "badge-warning";
-                else if(q.status === "ConvertedToOrder") statusClass="badge-info";
                 else if (q.status === "CO created") statusClass = "badge-secondary";
                 else if (q.status === "Cancelled") statusClass = "badge-danger";
                 else if(q.status === "Approved")statusClass="badge-success";
-
-
-
                 return (
                   <tr key={i} style={{ fontSize: '14px' }}>
                     <td>
@@ -1591,9 +1605,8 @@ handleAddSubProduct = () => {
   );
 
   renderQuoteForm = () => {
-    const { formData, overlayType, productOverlayVisible ,showTaxOverlay,taxGroups,recalculateTotals} = this.state;
+    const { formData, overlayType, productOverlayVisible,recalculateQuoteTotals ,showTaxOverlay,taxGroups} = this.state;
     const isFOB = formData.impExp === 'FOB';
-
     return (
       <div>
         <div className="card full-height">
@@ -1715,7 +1728,7 @@ handleAddSubProduct = () => {
                               checked={formData.choose === 'Bundle'}
                               onChange={e => this.handleChooseChange(e.target.value)}
                             />
-                            <label className="form-check-label" htmlFor="chooseBundle">Bundle (Service+Product)</label>
+                            <label className="form-check-label" htmlFor="chooseBundle">Service+Product</label>
                           </div>
                         </div>
                       </div>
@@ -1769,7 +1782,7 @@ handleAddSubProduct = () => {
                         className='form-control'
                         value={formData.discountPercent}
                         onChange={e => {
-                          this.handleInputChange('discountPercent', e.target.value);
+                          this.handleDiscountChange('discountPercent', e.target.value);
                           this.recalculateQuoteTotals();
                         }}
                       />
@@ -1873,11 +1886,6 @@ handleAddSubProduct = () => {
           </tbody>
         </table>
       </div>
-
-                          {/* Add pagination for line items here if needed */}
-                          <div className="d-flex justify-content-between align-items-center mt-2">
-                            <span>Page 1 of 1</span>
-                          </div>
                       
                   </>
                 )}
@@ -2001,14 +2009,14 @@ handleAddSubProduct = () => {
               </div>
               {this.renderSubProductDialog()}
               <div className="fixed-card-footer text-right p-3 border-top bg-white">
-                <button type="submit" className="btn btn-success mr-2">Save All Details</button>
                 <button
                   type="button"
-                  className="btn btn-secondary"
+                  className="btn btn-secondary mr-2"
                   onClick={() => this.setState({ showForm: false, editingId: null })}
                 >
                   Cancel
                 </button>
+                <button type="submit" className="btn btn-success mr-2">Save All Details</button>
               </div>
             </form>
             {overlayType && this.renderOverlay()}
@@ -2053,7 +2061,7 @@ handleAddSubProduct = () => {
           <button
             className="btn btn-sm btn-primary"
             onClick={() => this.loadQuoteForEdit(q)}
-            disabled={q.status !== "Entered" && q.status !== "Awaiting for Approval"}
+            disabled={q.status === "Approved" || q.status === "CO Created"}
           >
             Edit
           </button>

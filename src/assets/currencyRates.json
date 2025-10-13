@@ -1,0 +1,1372 @@
+{
+  "source_file_date": "2025-10-07",
+  "generated_on": "2025-10-07T11:01:21.600592Z",
+  "base": "INR",
+  "mapping_count": 341,
+  "mapping": {
+    "1INCH": {
+      "name": "1INCH",
+      "rate": 0.042637058
+    },
+    "AAVE": {
+      "name": "AAVE",
+      "rate": 3.7907202e-05
+    },
+    "ADA": {
+      "name": "Cardano",
+      "rate": 0.01337838
+    },
+    "AED": {
+      "name": "United Arab Emirates Dirham",
+      "rate": 0.041385827
+    },
+    "AFN": {
+      "name": "AFN",
+      "rate": 0.75524203
+    },
+    "AGIX": {
+      "name": "AGIX",
+      "rate": 0.044455441
+    },
+    "AKT": {
+      "name": "AKT",
+      "rate": 0.010645287
+    },
+    "ALGO": {
+      "name": "ALGO",
+      "rate": 0.049173033
+    },
+    "ALL": {
+      "name": "ALL",
+      "rate": 0.93170863
+    },
+    "AMD": {
+      "name": "AMD",
+      "rate": 4.29572492
+    },
+    "AMP": {
+      "name": "AMP",
+      "rate": 3.51484551
+    },
+    "ANG": {
+      "name": "ANG",
+      "rate": 0.020246612
+    },
+    "AOA": {
+      "name": "AOA",
+      "rate": 10.34070761
+    },
+    "APE": {
+      "name": "ApeCoin",
+      "rate": 0.019618306
+    },
+    "APT": {
+      "name": "APT",
+      "rate": 0.0021178412
+    },
+    "AR": {
+      "name": "AR",
+      "rate": 0.0018544903
+    },
+    "ARB": {
+      "name": "ARB",
+      "rate": 0.024537926
+    },
+    "ARS": {
+      "name": "ARS",
+      "rate": 16.11399875
+    },
+    "ATOM": {
+      "name": "Cosmos",
+      "rate": 0.0026430633
+    },
+    "ATS": {
+      "name": "ATS",
+      "rate": 0.13254715
+    },
+    "AUD": {
+      "name": "Australian Dollar",
+      "rate": 0.017040597
+    },
+    "AVAX": {
+      "name": "Avalanche",
+      "rate": 0.00037025316
+    },
+    "AWG": {
+      "name": "AWG",
+      "rate": 0.020171717
+    },
+    "AXS": {
+      "name": "AXS",
+      "rate": 0.0048777571
+    },
+    "AZM": {
+      "name": "AZM",
+      "rate": 95.78797965
+    },
+    "AZN": {
+      "name": "AZN",
+      "rate": 0.019157596
+    },
+    "BAKE": {
+      "name": "BAKE",
+      "rate": 0.5825911
+    },
+    "BAM": {
+      "name": "BAM",
+      "rate": 0.018839684
+    },
+    "BAT": {
+      "name": "BAT",
+      "rate": 0.076191974
+    },
+    "BBD": {
+      "name": "BBD",
+      "rate": 0.022538231
+    },
+    "BCH": {
+      "name": "Bitcoin Cash",
+      "rate": 1.8912522e-05
+    },
+    "BDT": {
+      "name": "Bangladeshi Taka",
+      "rate": 1.36945646
+    },
+    "BEF": {
+      "name": "BEF",
+      "rate": 0.3885772
+    },
+    "BGN": {
+      "name": "BGN",
+      "rate": 0.018839684
+    },
+    "BHD": {
+      "name": "BHD",
+      "rate": 0.0042371874
+    },
+    "BIF": {
+      "name": "BIF",
+      "rate": 33.13453622
+    },
+    "BMD": {
+      "name": "BMD",
+      "rate": 0.011269115
+    },
+    "BNB": {
+      "name": "Binance Coin",
+      "rate": 9.2996667e-06
+    },
+    "BND": {
+      "name": "BND",
+      "rate": 0.014557865
+    },
+    "BOB": {
+      "name": "BOB",
+      "rate": 0.077959981
+    },
+    "BRL": {
+      "name": "Brazilian Real",
+      "rate": 0.059864346
+    },
+    "BSD": {
+      "name": "BSD",
+      "rate": 0.011269115
+    },
+    "BSV": {
+      "name": "BSV",
+      "rate": 0.00039616478
+    },
+    "BSW": {
+      "name": "BSW",
+      "rate": 1.45325075
+    },
+    "BTC": {
+      "name": "Bitcoin",
+      "rate": 9.0354641e-08
+    },
+    "BTCB": {
+      "name": "BTCB",
+      "rate": 0.061996099
+    },
+    "BTG": {
+      "name": "BTG",
+      "rate": 0.0063265779
+    },
+    "BTN": {
+      "name": "BTN",
+      "rate": 1.0
+    },
+    "BTT": {
+      "name": "BTT",
+      "rate": 18543.59294143
+    },
+    "BUSD": {
+      "name": "Binance USD",
+      "rate": 0.011164797
+    },
+    "BWP": {
+      "name": "BWP",
+      "rate": 0.15552454
+    },
+    "BYN": {
+      "name": "BYN",
+      "rate": 0.038230087
+    },
+    "BYR": {
+      "name": "BYR",
+      "rate": 382.30087192
+    },
+    "BZD": {
+      "name": "BZD",
+      "rate": 0.022665758
+    },
+    "CAD": {
+      "name": "Canadian Dollar",
+      "rate": 0.015722673
+    },
+    "CAKE": {
+      "name": "CAKE",
+      "rate": 0.0029931901
+    },
+    "CDF": {
+      "name": "CDF",
+      "rate": 27.86294687
+    },
+    "CELO": {
+      "name": "CELO",
+      "rate": 0.026780045
+    },
+    "CFX": {
+      "name": "CFX",
+      "rate": 0.07569753
+    },
+    "CHF": {
+      "name": "Swiss Franc",
+      "rate": 0.008965237
+    },
+    "CHZ": {
+      "name": "CHZ",
+      "rate": 0.25446343
+    },
+    "CLP": {
+      "name": "CLP",
+      "rate": 10.84022794
+    },
+    "CNH": {
+      "name": "Chinese Yuan (Offshore)",
+      "rate": 0.080483052
+    },
+    "CNY": {
+      "name": "Chinese Yuan",
+      "rate": 0.080231187
+    },
+    "COMP": {
+      "name": "COMP",
+      "rate": 0.00025785978
+    },
+    "COP": {
+      "name": "COP",
+      "rate": 43.52947125
+    },
+    "CRC": {
+      "name": "CRC",
+      "rate": 5.6646678
+    },
+    "CRO": {
+      "name": "CRO",
+      "rate": 0.053466669
+    },
+    "CRV": {
+      "name": "CRV",
+      "rate": 0.0145392
+    },
+    "CSPR": {
+      "name": "CSPR",
+      "rate": 1.21447348
+    },
+    "CUC": {
+      "name": "CUC",
+      "rate": 0.011269115
+    },
+    "CUP": {
+      "name": "CUP",
+      "rate": 0.26961787
+    },
+    "CVE": {
+      "name": "CVE",
+      "rate": 1.06218429
+    },
+    "CVX": {
+      "name": "CVX",
+      "rate": 0.0030545764
+    },
+    "CYP": {
+      "name": "CYP",
+      "rate": 0.005637697
+    },
+    "CZK": {
+      "name": "CZK",
+      "rate": 0.2342187
+    },
+    "DAI": {
+      "name": "Dai",
+      "rate": 0.011277274
+    },
+    "DASH": {
+      "name": "DASH",
+      "rate": 0.00033638653
+    },
+    "DCR": {
+      "name": "DCR",
+      "rate": 0.00060559024
+    },
+    "DEM": {
+      "name": "DEM",
+      "rate": 0.018839684
+    },
+    "DFI": {
+      "name": "DFI",
+      "rate": 10.87539177
+    },
+    "DJF": {
+      "name": "DJF",
+      "rate": 2.00622843
+    },
+    "DKK": {
+      "name": "DKK",
+      "rate": 0.071912325
+    },
+    "DOGE": {
+      "name": "Dogecoin",
+      "rate": 0.042372819
+    },
+    "DOP": {
+      "name": "DOP",
+      "rate": 0.70289646
+    },
+    "DOT": {
+      "name": "Polkadot",
+      "rate": 0.0025584545
+    },
+    "DYDX": {
+      "name": "DYDX",
+      "rate": 0.018002166
+    },
+    "DZD": {
+      "name": "DZD",
+      "rate": 1.46144307
+    },
+    "EEK": {
+      "name": "EEK",
+      "rate": 0.15071747
+    },
+    "EGLD": {
+      "name": "EGLD",
+      "rate": 0.00080174694
+    },
+    "EGP": {
+      "name": "Egyptian Pound",
+      "rate": 0.53629812
+    },
+    "ENJ": {
+      "name": "ENJ",
+      "rate": 0.17744895
+    },
+    "EOS": {
+      "name": "EOS",
+      "rate": 0.027512599
+    },
+    "ERN": {
+      "name": "ERN",
+      "rate": 0.16903673
+    },
+    "ESP": {
+      "name": "ESP",
+      "rate": 1.60272599
+    },
+    "ETB": {
+      "name": "ETB",
+      "rate": 1.62942646
+    },
+    "ETC": {
+      "name": "ETC",
+      "rate": 0.00056428787
+    },
+    "ETH": {
+      "name": "Ethereum",
+      "rate": 2.4062108e-06
+    },
+    "EUR": {
+      "name": "Euro",
+      "rate": 0.0096325772
+    },
+    "EURC": {
+      "name": "EURC",
+      "rate": 0.0096094381
+    },
+    "FEI": {
+      "name": "FEI",
+      "rate": 0.011450783
+    },
+    "FIL": {
+      "name": "Filecoin",
+      "rate": 0.0046982448
+    },
+    "FIM": {
+      "name": "FIM",
+      "rate": 0.057272703
+    },
+    "FJD": {
+      "name": "FJD",
+      "rate": 0.025408044
+    },
+    "FKP": {
+      "name": "FKP",
+      "rate": 0.0083628686
+    },
+    "FLOW": {
+      "name": "FLOW",
+      "rate": 0.029792944
+    },
+    "FLR": {
+      "name": "FLR",
+      "rate": 0.46755472
+    },
+    "FRAX": {
+      "name": "FRAX",
+      "rate": 0.011299811
+    },
+    "FRF": {
+      "name": "FRF",
+      "rate": 0.063185565
+    },
+    "FTT": {
+      "name": "FTX Token",
+      "rate": 0.012149224
+    },
+    "GALA": {
+      "name": "GALA",
+      "rate": 0.68650923
+    },
+    "GBP": {
+      "name": "British Pound Sterling",
+      "rate": 0.0083628686
+    },
+    "GEL": {
+      "name": "GEL",
+      "rate": 0.030590661
+    },
+    "GGP": {
+      "name": "GGP",
+      "rate": 0.0083628686
+    },
+    "GHC": {
+      "name": "GHC",
+      "rate": 1417.20671595
+    },
+    "GHS": {
+      "name": "GHS",
+      "rate": 0.14172067
+    },
+    "GIP": {
+      "name": "GIP",
+      "rate": 0.0083628686
+    },
+    "GMD": {
+      "name": "GMD",
+      "rate": 0.82332118
+    },
+    "GMX": {
+      "name": "GMX",
+      "rate": 0.00075117642
+    },
+    "GNF": {
+      "name": "GNF",
+      "rate": 97.83287971
+    },
+    "GNO": {
+      "name": "GNO",
+      "rate": 7.1914401e-05
+    },
+    "GRD": {
+      "name": "GRD",
+      "rate": 3.28230069
+    },
+    "GRT": {
+      "name": "GRT",
+      "rate": 0.13085623
+    },
+    "GT": {
+      "name": "GT",
+      "rate": 0.00065885173
+    },
+    "GTQ": {
+      "name": "GTQ",
+      "rate": 0.086240262
+    },
+    "GUSD": {
+      "name": "GUSD",
+      "rate": 0.011276899
+    },
+    "GYD": {
+      "name": "GYD",
+      "rate": 2.35288487
+    },
+    "HBAR": {
+      "name": "HBAR",
+      "rate": 0.049032945
+    },
+    "HKD": {
+      "name": "Hong Kong Dollar",
+      "rate": 0.087708146
+    },
+    "HNL": {
+      "name": "HNL",
+      "rate": 0.29552599
+    },
+    "HNT": {
+      "name": "HNT",
+      "rate": 0.0043714702
+    },
+    "HOT": {
+      "name": "HOT",
+      "rate": 12.47867664
+    },
+    "HRK": {
+      "name": "HRK",
+      "rate": 0.072576653
+    },
+    "HT": {
+      "name": "HT",
+      "rate": 0.026712263
+    },
+    "HTG": {
+      "name": "HTG",
+      "rate": 1.47782425
+    },
+    "HUF": {
+      "name": "HUF",
+      "rate": 3.74415111
+    },
+    "ICP": {
+      "name": "ICP",
+      "rate": 0.0024469127
+    },
+    "IDR": {
+      "name": "Indonesian Rupiah",
+      "rate": 186.95936094
+    },
+    "IEP": {
+      "name": "IEP",
+      "rate": 0.007586271
+    },
+    "ILS": {
+      "name": "ILS",
+      "rate": 0.036934767
+    },
+    "IMP": {
+      "name": "IMP",
+      "rate": 0.0083628686
+    },
+    "IMX": {
+      "name": "IMX",
+      "rate": 0.014974286
+    },
+    "INJ": {
+      "name": "INJ",
+      "rate": 0.00085942155
+    },
+    "INR": {
+      "name": "Indian Rupee",
+      "rate": 1.0
+    },
+    "IQD": {
+      "name": "IQD",
+      "rate": 14.75228722
+    },
+    "IRR": {
+      "name": "IRR",
+      "rate": 473.25267266
+    },
+    "ISK": {
+      "name": "ISK",
+      "rate": 1.36588391
+    },
+    "ITL": {
+      "name": "ITL",
+      "rate": 18.6512703
+    },
+    "JEP": {
+      "name": "JEP",
+      "rate": 0.0083628686
+    },
+    "JMD": {
+      "name": "JMD",
+      "rate": 1.80144421
+    },
+    "JOD": {
+      "name": "JOD",
+      "rate": 0.0079898029
+    },
+    "JPY": {
+      "name": "Japanese Yen",
+      "rate": 1.69563153
+    },
+    "KAS": {
+      "name": "KAS",
+      "rate": 0.14388118
+    },
+    "KAVA": {
+      "name": "KAVA",
+      "rate": 0.03390404
+    },
+    "KCS": {
+      "name": "KCS",
+      "rate": 0.0006977983
+    },
+    "KDA": {
+      "name": "KDA",
+      "rate": 0.03047608
+    },
+    "KES": {
+      "name": "KES",
+      "rate": 1.45185793
+    },
+    "KGS": {
+      "name": "KGS",
+      "rate": 0.9855143
+    },
+    "KHR": {
+      "name": "KHR",
+      "rate": 45.07640463
+    },
+    "KLAY": {
+      "name": "KLAY",
+      "rate": 0.074723474
+    },
+    "KMF": {
+      "name": "KMF",
+      "rate": 4.73891734
+    },
+    "KNC": {
+      "name": "KNC",
+      "rate": 0.032817622
+    },
+    "KPW": {
+      "name": "KPW",
+      "rate": 10.14241799
+    },
+    "KRW": {
+      "name": "South Korean Won",
+      "rate": 15.92031421
+    },
+    "KSM": {
+      "name": "KSM",
+      "rate": 0.00072042574
+    },
+    "KWD": {
+      "name": "KWD",
+      "rate": 0.0034503187
+    },
+    "KYD": {
+      "name": "KYD",
+      "rate": 0.0093604908
+    },
+    "KZT": {
+      "name": "KZT",
+      "rate": 6.11966603
+    },
+    "LAK": {
+      "name": "LAK",
+      "rate": 244.17005839
+    },
+    "LBP": {
+      "name": "LBP",
+      "rate": 1009.139833
+    },
+    "LDO": {
+      "name": "LDO",
+      "rate": 0.0089940044
+    },
+    "LEO": {
+      "name": "LEO",
+      "rate": 0.001170508
+    },
+    "LINK": {
+      "name": "Chainlink",
+      "rate": 0.00047702987
+    },
+    "LKR": {
+      "name": "Sri Lankan Rupee",
+      "rate": 3.40205067
+    },
+    "LRC": {
+      "name": "LRC",
+      "rate": 0.12973932
+    },
+    "LRD": {
+      "name": "LRD",
+      "rate": 2.0418815
+    },
+    "LSL": {
+      "name": "LSL",
+      "rate": 0.19377284
+    },
+    "LTC": {
+      "name": "Litecoin",
+      "rate": 9.511463e-05
+    },
+    "LTL": {
+      "name": "LTL",
+      "rate": 0.033259363
+    },
+    "LUF": {
+      "name": "LUF",
+      "rate": 0.3885772
+    },
+    "LUNA": {
+      "name": "LUNA",
+      "rate": 0.064742591
+    },
+    "LUNC": {
+      "name": "LUNC",
+      "rate": 200.41951197
+    },
+    "LVL": {
+      "name": "LVL",
+      "rate": 0.0067697753
+    },
+    "LYD": {
+      "name": "LYD",
+      "rate": 0.060855875
+    },
+    "MAD": {
+      "name": "MAD",
+      "rate": 0.1027743
+    },
+    "MANA": {
+      "name": "MANA",
+      "rate": 0.03275138
+    },
+    "MBX": {
+      "name": "MBX",
+      "rate": 0.081421846
+    },
+    "MDL": {
+      "name": "MDL",
+      "rate": 0.18823123
+    },
+    "MGA": {
+      "name": "MGA",
+      "rate": 50.32923078
+    },
+    "MGF": {
+      "name": "MGF",
+      "rate": 251.64615391
+    },
+    "MINA": {
+      "name": "MINA",
+      "rate": 0.066023936
+    },
+    "MKD": {
+      "name": "MKD",
+      "rate": 0.59292034
+    },
+    "MKR": {
+      "name": "MKR",
+      "rate": 6.051193e-06
+    },
+    "MMK": {
+      "name": "MMK",
+      "rate": 23.65790211
+    },
+    "MNT": {
+      "name": "MNT",
+      "rate": 40.54246567
+    },
+    "MOP": {
+      "name": "MOP",
+      "rate": 0.090339391
+    },
+    "MRO": {
+      "name": "MRO",
+      "rate": 4.49723983
+    },
+    "MRU": {
+      "name": "MRU",
+      "rate": 0.44972398
+    },
+    "MTL": {
+      "name": "MTL",
+      "rate": 0.0041352654
+    },
+    "MUR": {
+      "name": "MUR",
+      "rate": 0.5103694
+    },
+    "MVR": {
+      "name": "MVR",
+      "rate": 0.17361403
+    },
+    "MWK": {
+      "name": "MWK",
+      "rate": 19.50967207
+    },
+    "MXN": {
+      "name": "Mexican Peso",
+      "rate": 0.20669096
+    },
+    "MXV": {
+      "name": "MXV",
+      "rate": 0.024171
+    },
+    "MYR": {
+      "name": "Malaysian Ringgit",
+      "rate": 0.047499994
+    },
+    "MZM": {
+      "name": "MZM",
+      "rate": 719.20528083
+    },
+    "MZN": {
+      "name": "MZN",
+      "rate": 0.71920528
+    },
+    "NAD": {
+      "name": "NAD",
+      "rate": 0.19377284
+    },
+    "NEAR": {
+      "name": "NEAR Protocol",
+      "rate": 0.0036747312
+    },
+    "NEO": {
+      "name": "NEO",
+      "rate": 0.0017832082
+    },
+    "NEXO": {
+      "name": "NEXO",
+      "rate": 0.0088182662
+    },
+    "NFT": {
+      "name": "NFT",
+      "rate": 25966.14151621
+    },
+    "NGN": {
+      "name": "Nigerian Naira",
+      "rate": 16.53770978
+    },
+    "NIO": {
+      "name": "NIO",
+      "rate": 0.41393162
+    },
+    "NLG": {
+      "name": "NLG",
+      "rate": 0.021227407
+    },
+    "NOK": {
+      "name": "NOK",
+      "rate": 0.11188772
+    },
+    "NPR": {
+      "name": "Nepalese Rupee",
+      "rate": 1.60075
+    },
+    "NZD": {
+      "name": "New Zealand Dollar",
+      "rate": 0.019324259
+    },
+    "OKB": {
+      "name": "OKB",
+      "rate": 4.9025784e-05
+    },
+    "OMR": {
+      "name": "OMR",
+      "rate": 0.0043379267
+    },
+    "ONE": {
+      "name": "ONE",
+      "rate": 1.09004618
+    },
+    "OP": {
+      "name": "OP",
+      "rate": 0.01491321
+    },
+    "ORDI": {
+      "name": "ORDI",
+      "rate": 0.0012900543
+    },
+    "PAB": {
+      "name": "PAB",
+      "rate": 0.011269115
+    },
+    "PAXG": {
+      "name": "PAXG",
+      "rate": 2.8362404e-06
+    },
+    "PEN": {
+      "name": "PEN",
+      "rate": 0.03900145
+    },
+    "PEPE": {
+      "name": "PEPE",
+      "rate": 1106.17776397
+    },
+    "PGK": {
+      "name": "PGK",
+      "rate": 0.047160569
+    },
+    "PHP": {
+      "name": "Philippine Peso",
+      "rate": 0.65670081
+    },
+    "PI": {
+      "name": "PI",
+      "rate": 0.042728953
+    },
+    "PKR": {
+      "name": "Pakistani Rupee",
+      "rate": 3.17870577
+    },
+    "PLN": {
+      "name": "PLN",
+      "rate": 0.04097936
+    },
+    "POL": {
+      "name": "POL",
+      "rate": 0.045186296
+    },
+    "PTE": {
+      "name": "PTE",
+      "rate": 1.93115835
+    },
+    "PYG": {
+      "name": "PYG",
+      "rate": 78.76039364
+    },
+    "QAR": {
+      "name": "QAR",
+      "rate": 0.04101958
+    },
+    "QNT": {
+      "name": "QNT",
+      "rate": 0.00010630361
+    },
+    "QTUM": {
+      "name": "QTUM",
+      "rate": 0.0050198047
+    },
+    "ROL": {
+      "name": "ROL",
+      "rate": 490.50572458
+    },
+    "RON": {
+      "name": "RON",
+      "rate": 0.049050572
+    },
+    "RPL": {
+      "name": "RPL",
+      "rate": 0.0021606547
+    },
+    "RSD": {
+      "name": "RSD",
+      "rate": 1.12864104
+    },
+    "RUB": {
+      "name": "Russian Ruble",
+      "rate": 0.93576442
+    },
+    "RUNE": {
+      "name": "RUNE",
+      "rate": 0.0093956935
+    },
+    "RVN": {
+      "name": "RVN",
+      "rate": 0.90224921
+    },
+    "RWF": {
+      "name": "RWF",
+      "rate": 16.33529361
+    },
+    "SAND": {
+      "name": "SAND",
+      "rate": 0.039425291
+    },
+    "SAR": {
+      "name": "SAR",
+      "rate": 0.042259183
+    },
+    "SBD": {
+      "name": "SBD",
+      "rate": 0.094483842
+    },
+    "SCR": {
+      "name": "SCR",
+      "rate": 0.16507187
+    },
+    "SDD": {
+      "name": "SDD",
+      "rate": 676.93325486
+    },
+    "SDG": {
+      "name": "SDG",
+      "rate": 6.76933255
+    },
+    "SEK": {
+      "name": "SEK",
+      "rate": 0.10580932
+    },
+    "SGD": {
+      "name": "Singapore Dollar",
+      "rate": 0.014557865
+    },
+    "SHIB": {
+      "name": "Shiba Inu",
+      "rate": 877.96986388
+    },
+    "SHP": {
+      "name": "SHP",
+      "rate": 0.0083628686
+    },
+    "SIT": {
+      "name": "SIT",
+      "rate": 2.30835081
+    },
+    "SKK": {
+      "name": "SKK",
+      "rate": 0.29019102
+    },
+    "SLE": {
+      "name": "SLE",
+      "rate": 0.26067278
+    },
+    "SLL": {
+      "name": "SLL",
+      "rate": 260.67278409
+    },
+    "SNX": {
+      "name": "SNX",
+      "rate": 0.0093741379
+    },
+    "SOL": {
+      "name": "Solana",
+      "rate": 4.843717e-05
+    },
+    "SOS": {
+      "name": "SOS",
+      "rate": 6.43704519
+    },
+    "SPL": {
+      "name": "SPL",
+      "rate": 0.0018781859
+    },
+    "SRD": {
+      "name": "SRD",
+      "rate": 0.43499041
+    },
+    "SRG": {
+      "name": "SRG",
+      "rate": 434.99040943
+    },
+    "STD": {
+      "name": "STD",
+      "rate": 237.60408749
+    },
+    "STN": {
+      "name": "STN",
+      "rate": 0.23760409
+    },
+    "STX": {
+      "name": "STX",
+      "rate": 0.017129704
+    },
+    "SUI": {
+      "name": "SUI",
+      "rate": 0.0031182515
+    },
+    "SVC": {
+      "name": "SVC",
+      "rate": 0.09860476
+    },
+    "SYP": {
+      "name": "SYP",
+      "rate": 146.52253382
+    },
+    "SZL": {
+      "name": "SZL",
+      "rate": 0.19377284
+    },
+    "THB": {
+      "name": "Thai Baht",
+      "rate": 0.3666767
+    },
+    "THETA": {
+      "name": "THETA",
+      "rate": 0.014550327
+    },
+    "TJS": {
+      "name": "TJS",
+      "rate": 0.10508207
+    },
+    "TMM": {
+      "name": "TMM",
+      "rate": 197.59964078
+    },
+    "TMT": {
+      "name": "TMT",
+      "rate": 0.039519928
+    },
+    "TND": {
+      "name": "TND",
+      "rate": 0.0328262
+    },
+    "TON": {
+      "name": "TON",
+      "rate": 0.0039614476
+    },
+    "TOP": {
+      "name": "TOP",
+      "rate": 0.026952649
+    },
+    "TRL": {
+      "name": "TRL",
+      "rate": 470041.40364414
+    },
+    "TRX": {
+      "name": "TRON",
+      "rate": 0.032516026
+    },
+    "TRY": {
+      "name": "Turkish Lira",
+      "rate": 0.4700414
+    },
+    "TTD": {
+      "name": "TTD",
+      "rate": 0.076266038
+    },
+    "TUSD": {
+      "name": "TUSD",
+      "rate": 0.011278626
+    },
+    "TVD": {
+      "name": "TVD",
+      "rate": 0.017040597
+    },
+    "TWD": {
+      "name": "TWD",
+      "rate": 0.34316785
+    },
+    "TWT": {
+      "name": "TWT",
+      "rate": 0.007178311
+    },
+    "TZS": {
+      "name": "TZS",
+      "rate": 27.62157441
+    },
+    "UAH": {
+      "name": "UAH",
+      "rate": 0.46545532
+    },
+    "UGX": {
+      "name": "UGX",
+      "rate": 38.82713458
+    },
+    "UNI": {
+      "name": "Uniswap",
+      "rate": 0.00135068
+    },
+    "USD": {
+      "name": "United States Dollar",
+      "rate": 0.011269115
+    },
+    "USDC": {
+      "name": "USD Coin",
+      "rate": 0.011239241
+    },
+    "USDD": {
+      "name": "USDD",
+      "rate": 0.011273632
+    },
+    "USDP": {
+      "name": "USDP",
+      "rate": 0.011261233
+    },
+    "USDT": {
+      "name": "Tether",
+      "rate": 0.011270489
+    },
+    "UYU": {
+      "name": "UYU",
+      "rate": 0.44852486
+    },
+    "UZS": {
+      "name": "UZS",
+      "rate": 135.78587892
+    },
+    "VAL": {
+      "name": "VAL",
+      "rate": 18.6512703
+    },
+    "VEB": {
+      "name": "VEB",
+      "rate": 208634516.3527271
+    },
+    "VED": {
+      "name": "VED",
+      "rate": 2.086122
+    },
+    "VEF": {
+      "name": "VEF",
+      "rate": 208612.20000432
+    },
+    "VES": {
+      "name": "VES",
+      "rate": 2.086122
+    },
+    "VET": {
+      "name": "VET",
+      "rate": 0.47589639
+    },
+    "VND": {
+      "name": "Vietnamese Dong",
+      "rate": 297.07401544
+    },
+    "VUV": {
+      "name": "VUV",
+      "rate": 1.3656859
+    },
+    "WAVES": {
+      "name": "Waves",
+      "rate": 0.011246126
+    },
+    "WEMIX": {
+      "name": "WEMIX",
+      "rate": 0.016479611
+    },
+    "WOO": {
+      "name": "WOO",
+      "rate": 0.15093359
+    },
+    "WST": {
+      "name": "WST",
+      "rate": 0.031147409
+    },
+    "XAF": {
+      "name": "XAF",
+      "rate": 6.31855646
+    },
+    "XAG": {
+      "name": "Silver (troy ounce)",
+      "rate": 0.00023319954
+    },
+    "XAU": {
+      "name": "Gold (troy ounce)",
+      "rate": 2.8470102e-06
+    },
+    "XAUT": {
+      "name": "XAUT",
+      "rate": 2.8440964e-06
+    },
+    "XBT": {
+      "name": "XBT",
+      "rate": 9.0354641e-08
+    },
+    "XCD": {
+      "name": "XCD",
+      "rate": 0.030502594
+    },
+    "XCG": {
+      "name": "XCG",
+      "rate": 0.020246612
+    },
+    "XCH": {
+      "name": "XCH",
+      "rate": 0.0012648661
+    },
+    "XDC": {
+      "name": "XDC",
+      "rate": 0.14931575
+    },
+    "XDR": {
+      "name": "XDR",
+      "rate": 0.0082494545
+    },
+    "XEC": {
+      "name": "XEC",
+      "rate": 597.09978662
+    },
+    "XEM": {
+      "name": "XEM",
+      "rate": 7.23241853
+    },
+    "XLM": {
+      "name": "Stellar",
+      "rate": 0.027586878
+    },
+    "XMR": {
+      "name": "XMR",
+      "rate": 3.5975415e-05
+    },
+    "XOF": {
+      "name": "XOF",
+      "rate": 6.31855646
+    },
+    "XPD": {
+      "name": "Palladium",
+      "rate": 8.5093778e-06
+    },
+    "XPF": {
+      "name": "XPF",
+      "rate": 1.14947222
+    },
+    "XPT": {
+      "name": "Platinum",
+      "rate": 6.9693292e-06
+    },
+    "XRP": {
+      "name": "XRP",
+      "rate": 0.0037684273
+    },
+    "XTZ": {
+      "name": "XTZ",
+      "rate": 0.015817803
+    },
+    "YER": {
+      "name": "YER",
+      "rate": 2.69324055
+    },
+    "ZAR": {
+      "name": "South African Rand",
+      "rate": 0.19377284
+    },
+    "ZEC": {
+      "name": "ZEC",
+      "rate": 7.0379229e-05
+    },
+    "ZIL": {
+      "name": "ZIL",
+      "rate": 1.00816176
+    },
+    "ZMK": {
+      "name": "ZMK",
+      "rate": 269.28992575
+    },
+    "ZMW": {
+      "name": "ZMW",
+      "rate": 0.26928993
+    },
+    "ZWD": {
+      "name": "ZWD",
+      "rate": 4.07829289
+    },
+    "ZWG": {
+      "name": "ZWG",
+      "rate": 0.30034195
+    },
+    "ZWL": {
+      "name": "ZWL",
+      "rate": 750.47171037
+    }
+  }
+}

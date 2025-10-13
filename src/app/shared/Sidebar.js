@@ -34,6 +34,7 @@ class Sidebar extends Component {
           key !== 'salesOrderOpen' &&
           key !== 'salesInvoiceOpen' &&
           key !== 'salesContractOpen' &&
+          key !== 'salesRejectOpen' &&
           key !== 'salescbOpen' &&
           key !== 'salesidOpen' && 
           key !== 'salestpOpen' 
@@ -59,6 +60,7 @@ class Sidebar extends Component {
       menuState === 'salesOrderOpen'||
       menuState === 'salesInvoiceOpen'||
       menuState === 'salesContractOpen'||
+      menuState === 'salesRejectOpen'||
       menuState ==='salescbOpen'||
       menuState === 'salesidOpen'|| 
       menuState === 'salestpOpen'
@@ -82,8 +84,8 @@ onRouteChanged() {
   const menuStates = [
     'appsMenuOpen', 'formsOpen', 'inventoryOpen', 'basicUiMenuOpen',
     'salesOpen', 'salesMastersOpen', 'salesTransactionsOpen',
-    'salesQuoteOpen', 'salesOrderOpen','salesInvoiceOpen','salesContractOpen','salescbOpen','salesidOpen','salestpOpen',
-    'purchaseOpen', 'adminOpen', 'formElementsMenuOpen',
+    'salesQuoteOpen', 'salesOrderOpen','salesInvoiceOpen','salesContractOpen','salescbOpen','salesidOpen','salestpOpen','salesRejectOpen', 
+    'pspOpen', 'adminOpen', 'formElementsMenuOpen',
     'tablesMenuOpen', 'iconsMenuOpen', 'chartsMenuOpen',
     'userPagesMenuOpen', 'errorPagesMenuOpen'
   ];
@@ -110,8 +112,9 @@ onRouteChanged() {
     { path: '/sales/salestransactions/invoice/idbill', state: 'salesidOpen' },
      { path: '/sales/salestransactions/invoice/tpbill', state: 'salestpOpen' },
     { path: '/sales/salestransactions/contract', state: 'salesContractOpen' },
+    { path: '/sales/salestransactions/rejection', state: 'salesRejectOpen' },
     { path: '/administrator', state: 'adminOpen' },
-    { path: '/purchase', state: 'purchaseOpen' },
+    { path: '/psp', state: 'pspOpen' },
     { path: '/form-elements', state: 'formElementsMenuOpen' },
     { path: '/tables', state: 'tablesMenuOpen' },
     { path: '/icons', state: 'iconsMenuOpen' },
@@ -185,108 +188,18 @@ onRouteChanged() {
               <span className="menu-title"><Trans>Dashboard</Trans></span>
             </Link>
           </li>
-          <li className={ this.isPathActive('/crm') ? 'nav-item active' : 'nav-item' }>
-            <div className={ this.state.crmOpen ? 'nav-link menu-expanded' : 'nav-link' } onClick={ () => this.toggleMenuState('crmOpen') } data-toggle="collapse">
+          <li className={ this.isPathActive('/psp') ? 'nav-item active' : 'nav-item' }>
+            <div className={ this.state.pspOpen ? 'nav-link menu-expanded' : 'nav-link' } onClick={ () => this.toggleMenuState('pspOpen') } data-toggle="collapse">
               <i className="mdi mdi-cart-outline menu-icon"></i>
-              <span className="menu-title"><Trans>CRM</Trans></span>
+              <span className="menu-title"><Trans>Problem Solving Card</Trans></span>
               <i className="menu-arrow"></i>
             </div>
-            <Collapse in={ this.state.crmOpen}>
+            <Collapse in={ this.state.pspOpen}>
               <ul className="nav flex-column sub-menu">
-                <li className="nav-item"> <Link className={ this.isPathActive('/crm/Datalist') ? 'nav-link active' : 'nav-link' } to="/crm/Datalist"><Trans>Datalist</Trans></Link></li>
-              </ul>
-            </Collapse>
-            <Collapse in={ this.state.crmOpen}>
-              <ul className="nav flex-column sub-menu">
-                <li className="nav-item"> <Link className={ this.isPathActive('/crm/Activity') ? 'nav-link active' : 'nav-link' } to="/crm/Activity"><Trans>Activity</Trans></Link></li>
+                <li className="nav-item"> <Link className={ this.isPathActive('/psp/pspform') ? 'nav-link active' : 'nav-link' } to="/psp/pspform"><Trans>Create PSC form</Trans></Link></li>
               </ul>
             </Collapse>
           </li>
-          <li className={ this.isPathActive('/inventory') ? 'nav-item active' : 'nav-item' }>
-  {/* Inventory Main Toggle */}
-  <div 
-    className={ this.state.inventoryOpen ? 'nav-link menu-expanded' : 'nav-link' }
-    onClick={ () => this.toggleMenuState('inventoryOpen') }
-    data-toggle="collapse"
-  >
-    <i className="mdi mdi-poll menu-icon"></i>
-    <span className="menu-title"><Trans>Inventory</Trans></span>
-    <i className="menu-arrow"></i>
-  </div>
-
-  {/* Inventory Content */}
-  <Collapse in={ this.state.inventoryOpen }>
-    <ul className="nav flex-column sub-menu">
-
-      {/* Masters Section */}
-      <li className={ this.isPathActive('/inventory/invmaster') ? 'nav-item active' : 'nav-item' }>
-        <div 
-          className={ this.state.invmasterOpen ? 'nav-link menu-expanded' : 'nav-link' }
-          onClick={ () => this.toggleMenuState('invmasterOpen') }
-          data-toggle="collapse"
-        >
-          <span className="menu-title"><Trans>Masters</Trans></span>
-          <i className="menu-arrow"></i>
-        </div>
-        <Collapse in={ this.state.invmasterOpen }>
-          <ul className="nav flex-column sub-menu">
-            <li className="nav-item"><Link className={ this.isPathActive('/inventory/invmaster/ProductMaster') ? 'nav-link active' : 'nav-link' } to="/inventory/invmaster/ProductMaster"><Trans>Product Master</Trans></Link></li>
-            <li className="nav-item"><Link className={ this.isPathActive('/inventory/invmaster/UOMPage') ? 'nav-link active' : 'nav-link' } to="/inventory/invmaster/UOMPage"><Trans>UOM</Trans></Link></li>
-            <li className="nav-item"><Link className={ this.isPathActive('/inventory/invmaster/PaymentTerms') ? 'nav-link active' : 'nav-link' } to="/inventory/invmaster/PaymentTerms"><Trans>Payment Terms</Trans></Link></li>
-            <li className="nav-item"><Link className={ this.isPathActive('/inventory/invmaster/LocationPage') ? 'nav-link active' : 'nav-link' } to="/inventory/invmaster/LocationPage"><Trans>Location</Trans></Link></li>
-            <li className="nav-item"><Link className={ this.isPathActive('/inventory/invmaster/WarehousePage') ? 'nav-link active' : 'nav-link' } to="/inventory/invmaster/WarehousePage"><Trans>Warehouse</Trans></Link></li>
-            <li className="nav-item"><Link className={ this.isPathActive('/inventory/invmaster/Locator') ? 'nav-link active' : 'nav-link' } to="/inventory/invmaster/Locator"><Trans>Locator</Trans></Link></li>
-            <li className="nav-item"><Link className={ this.isPathActive('/inventory/invmaster/Taxgroup') ? 'nav-link active' : 'nav-link' } to="/inventory/invmaster/Taxgroup"><Trans>Tax Group</Trans></Link></li>
-            <li className="nav-item"><Link className={ this.isPathActive('/inventory/invmaster/TaxComponent') ? 'nav-link active' : 'nav-link' } to="/inventory/invmaster/TaxComponent"><Trans>Tax Component</Trans></Link></li>
-            <li className="nav-item"><Link className={ this.isPathActive('/inventory/invmaster/CurrencyPage') ? 'nav-link active' : 'nav-link' } to="/inventory/invmaster/CurrencyPage"><Trans>Currencies</Trans></Link></li>
-            <li className="nav-item"><Link className={ this.isPathActive('/inventory/invmaster/DespatchMode') ? 'nav-link active' : 'nav-link' } to="/inventory/invmaster/DespatchMode"><Trans>Despatch Mode</Trans></Link></li>
-          </ul>
-        </Collapse>
-      </li>
-
-      {/* Stock Details Section */}
-      <li className={ this.isPathActive('/inventory/invstockdetails') ? 'nav-item active' : 'nav-item' }>
-        <div 
-          className={ this.state.invstockdetailsOpen ? 'nav-link menu-expanded' : 'nav-link' }
-          onClick={ () => this.toggleMenuState('invstockdetailsOpen') }
-          data-toggle="collapse"
-        >
-          <span className="menu-title"><Trans>Stock details</Trans></span>
-          <i className="menu-arrow"></i>
-        </div>
-        <Collapse in={ this.state.invstockdetailsOpen }>
-          <ul className="nav flex-column sub-menu">
-            <li className="nav-item"><Link className={ this.isPathActive('/inventory/invstockdetails/OpenStockUpdate') ? 'nav-link active' : 'nav-link' } to="/inventory/invstockdetails/OpenStockUpdate"><Trans>Open Stock Update</Trans></Link></li>
-            <li className="nav-item"><Link className={ this.isPathActive('/inventory/invstockdetails/StockLedger') ? 'nav-link active' : 'nav-link' } to="/inventory/invstockdetails/StockLedger"><Trans>Stock Ledger</Trans></Link></li>
-          </ul>
-        </Collapse>
-      </li>
-
-      {/* Direct Report Link */}
-      <li className="nav-item">
-        <Link className={ this.isPathActive('/inventory/invreport') ? 'nav-link active' : 'nav-link' } to="/inventory/invreport">
-          <span className="menu-title"><Trans>Report</Trans></span>
-        </Link>
-      </li>
-
-    </ul>
-  </Collapse>
-</li>
-
-          <li className={ this.isPathActive('/purchase') ? 'nav-item active' : 'nav-item' }>
-            <div className={ this.state.purchaseOpen ? 'nav-link menu-expanded' : 'nav-link' } onClick={ () => this.toggleMenuState('purchaseOpen') } data-toggle="collapse">
-              <i className="mdi mdi-cart-outline menu-icon"></i>
-              <span className="menu-title"><Trans>Purchase</Trans></span>
-              <i className="menu-arrow"></i>
-            </div>
-            <Collapse in={ this.state.purchaseOpen}>
-              <ul className="nav flex-column sub-menu">
-                <li className="nav-item"> <Link className={ this.isPathActive('/purchase/Supplier') ? 'nav-link active' : 'nav-link' } to="/purchase/Supplier"><Trans>Supplier</Trans></Link></li>
-              </ul>
-            </Collapse>
-          </li>
-
-          {/* Sales Menu */}
 <li className={ this.isPathActive('/sales') ? 'nav-item active' : 'nav-item' }>
   <div 
     className={ this.state.salesOpen ? 'nav-link menu-expanded' : 'nav-link' }
@@ -418,6 +331,8 @@ onRouteChanged() {
               <Collapse in={ this.state.salesidOpen }>
                 <ul className="nav flex-column sub-menu">
                   <li className="nav-item"><Link className={ this.isPathActive('/sales/salestransactions/invoice/idbill/IndirectBilling') ? 'nav-link active' : 'nav-link' } to="/sales/salestransactions/invoice/idbill/IndirectBilling"><Trans>Indirect Billing</Trans></Link></li>
+               <li className="nav-item"><Link className={ this.isPathActive('/sales/salestransactions/invoice/idbill/IndirectBillingApproval') ? 'nav-link active' : 'nav-link' } to="/sales/salestransactions/invoice/idbill/IndirectBillingApproval"><Trans>Indirect Billing Approval</Trans></Link></li>
+
                 </ul>
               </Collapse>
             </li>
@@ -433,6 +348,7 @@ onRouteChanged() {
               <Collapse in={ this.state.salestpOpen }>
                 <ul className="nav flex-column sub-menu">
                   <li className="nav-item"><Link className={ this.isPathActive('/sales/salestransactions/invoice/tpbill/ThirdPartyBilling') ? 'nav-link active' : 'nav-link' } to="/sales/salestransactions/invoice/tpbill/ThirdPartyBilling"><Trans>Third Party Billing</Trans></Link></li>
+                  <li className="nav-item"><Link className={ this.isPathActive('/sales/salestransactions/invoice/tpbill/ThirdPartyBillingApproval') ? 'nav-link active' : 'nav-link' } to="/sales/salestransactions/invoice/tpbill/ThirdPartyBillingApproval"><Trans>Third Party Billing Approval</Trans></Link></li>
                 </ul>
               </Collapse>
             </li>
@@ -453,7 +369,23 @@ onRouteChanged() {
               <Collapse in={ this.state.salesContractOpen }>
                 <ul className="nav flex-column sub-menu">
                   <li className="nav-item"><Link className={ this.isPathActive('/sales/salestransactions/servicecontract/servicecontractbilling') ? 'nav-link active' : 'nav-link' } to="/sales/salestransactions/servicecontract/servicecontractbilling"><Trans>Service Contract</Trans></Link></li>
-                  <li className="nav-item"><Link className={ this.isPathActive('/sales/salestransactions/servicecontract/contractapproval') ? 'nav-link active' : 'nav-link' } to="/sales/salestransactions/servicecontract/contractapproval"><Trans>Service Contract Approval</Trans></Link></li>
+                  <li className="nav-item"><Link className={ this.isPathActive('/sales/salestransactions/servicecontract/servicecontractapproval') ? 'nav-link active' : 'nav-link' } to="/sales/salestransactions/servicecontract/servicecontractapproval"><Trans>Service Contract Approval</Trans></Link></li>
+
+                </ul>
+              </Collapse>
+            </li>
+            <li className={ this.isPathActive('/sales/salestransactions/rejection') ? 'nav-item active' : 'nav-item' }>
+              <div 
+                className={ this.state.salesRejectOpen ? 'nav-link menu-expanded' : 'nav-link' }
+                onClick={ () => this.toggleMenuState('salesRejectOpen') }
+                data-toggle="collapse"
+              >
+                <span className="menu-title"><Trans>Rejection from Customer</Trans></span>
+                <i className="menu-arrow"></i>
+              </div>
+              <Collapse in={ this.state.salesRejectOpen }>
+                <ul className="nav flex-column sub-menu">
+                  <li className="nav-item"><Link className={ this.isPathActive('/sales/salestransactions/rejection/rejectionfromcustomer') ? 'nav-link active' : 'nav-link' } to="/sales/salestransactions/rejection/rejectionfromcustomer"><Trans>Rej From Customer</Trans></Link></li>
 
                 </ul>
               </Collapse>
@@ -472,35 +404,7 @@ onRouteChanged() {
     <i className="mdi mdi-account-box-outline menu-icon"></i>
     <span className="menu-title"><Trans>Administrator</Trans></span>
   </Link>
-</li>
-
-           <li className="nav-item">
-            <Link className="nav-link" to="/panelone/LeadForm">
-              <i className="mdi mdi-percent menu-icon"></i>
-              <span className="menu-title">Lead</span>
-            </Link>
-          </li>
-          
-           <li className="nav-item">
-            <Link className="nav-link" to="/panelone/Quote">
-              <i className="mdi mdi-percent menu-icon"></i>
-              <span className="menu-title">Quote</span>
-            </Link>
-          </li>
-          <li className="nav-item">
-            <Link className="nav-link" to="/panelone/Order">
-              <i className="mdi mdi-file-check menu-icon"></i>
-              <span className="menu-title">Order</span>
-            </Link>
-          </li>
-          <li className="nav-item">
-            <Link className="nav-link" to="/panelone/Invoice">
-              <i className="mdi mdi-file-check menu-icon"></i>
-              <span className="menu-title">Invoice</span>
-            </Link>
-          </li>
-         
-         
+</li>    
         </ul>
       </nav>
     );

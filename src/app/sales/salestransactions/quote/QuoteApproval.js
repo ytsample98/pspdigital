@@ -34,6 +34,11 @@ class QuoteApproval extends Component {
     try {
       const snap = await getDocs(collection(db, "quotes"));
       const quotes = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      quotes.sort((a,b)=>{
+      const dateA=new Date(a.quoteDate || a.createdAt?.toDate?.() || a.createdAt || 0);
+      const dateB=new Date(b.quoteDate || b.createdAt?.toDate?.() || b.createdAt || 0);
+      return dateB - dateA;
+    });
       this.setState({ quotes, loading: false });
     } catch (err) {
       this.setState({ error: err.message, loading: false });
@@ -65,7 +70,13 @@ class QuoteApproval extends Component {
   closePreview = () => {
     this.setState({ selectedQuote: null, previewMode: false, showEditForm: false, editingId: null });
   };
-
+convertToOrder = (quoteObj) => {
+  sessionStorage.setItem('quoteToConvert', JSON.stringify(quoteObj));
+  this.props.history.push({
+    pathname: '/sales/salestransactions/order/Order',
+    state: { openForm: true, quoteId: quoteObj.id || null }
+  });
+};
   openEditForm = (quote) => {
     this.setState({
       showEditForm: true,
@@ -939,12 +950,12 @@ renderEditForm = () => {
         </tr>
         <tr>
   <td colspan="7" style="text-align:right; border:1px solid #011b56;"><b>Discount Amount</b></td>
-  <td style="border:1px solid #011b56;"><b>${(quote.discountAmount || 0).toFixed(2)}</b></td>
+  <td style="border:1px solid #011b56;"><b>${Number(quote.discountAmount || 0).toFixed(2)}</b></td>
 </tr>
 
         <tr>
   <td colspan="7" style="text-align:right; border:1px solid #011b56;"><b>Grand Total</b></td>
-  <td style="border:1px solid #011b56;"><b>${(quote.afterDiscountValue || grandTotal).toFixed(2)}</b></td>
+  <td style="border:1px solid #011b56;"><b>${Number(quote.afterDiscountValue || grandTotal).toFixed(2)}</b></td>
 </tr>
 
       </tbody>

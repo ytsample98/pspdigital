@@ -2,7 +2,7 @@ import React, { Component } from 'react';
 import { Form } from 'react-bootstrap';
 import bsCustomFileInput from 'bs-custom-file-input';
 import { db } from '../../../../firebase';
-import { collection, getDocs, addDoc, doc, updateDoc ,serverTimestamp} from 'firebase/firestore';
+import { collection, getDocs, addDoc, doc, updateDoc ,serverTimestamp,onSnapshot} from 'firebase/firestore';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf'; 
 import { toWords } from 'number-to-words';
@@ -466,14 +466,26 @@ filterProductsByCategory = () => {
 
 componentDidMount() {
   bsCustomFileInput.init();
-  this.fetchinvoice();
+  this.subscribeToInvoices();
   this.fetchCustomers();
   this.fetchProducts().then(() => this.filterProductsByCategory());
   this.fetchDespatchModes();
   this.fetchPaymentTerms();
   this.fetchTaxGroups();
-
 }
+
+componentWillUnmount() {
+  if (this._unsubInvoices) this._unsubInvoices();
+}
+
+subscribeToInvoices = () => {
+  this._unsubInvoices = onSnapshot(collection(db, 'invoices'), snap => {
+    const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    this.setState({ invoices: data.reverse() });
+  }, err => {
+    console.error('invoices snapshot error', err);
+  });
+};
 componentDidUpdate(prevProps, prevState) {
   // Customer details auto-fill (keep this)
   if (
@@ -809,7 +821,7 @@ renderTaxOverlay = () => {
   const selected = new Set(item.taxGroupNames || []);
   return (
     <div style={{
-      position: 'fixed', zIndex: 1000, top: '10%', left: '15%',
+      position: 'fixed', zIndex: 1000, top: '18%', left: '20%',
       background: '#fff', border: '1px solid #ccc', padding: '20px',
       boxShadow: '0 0 10px rgba(0,0,0,0.3)', width: '70%',
       maxHeight: '70vh', overflowY: 'auto'
@@ -1047,11 +1059,12 @@ const filtered = filteredProducts.filter(p =>
               </tbody>
             </table>
           </div>
-          {/* Add pagination here if needed, for now, it's just a placeholder */}
-          <div className="d-flex justify-content-between align-items-center mt-2">
-            <span>Page 1 of 1</span>
-            <button className="btn btn-secondary btn-sm" onClick={() => this.setState({ productOverlayVisible: false, selectedProductIds: [] })}>Cancel</button>
-          </div>
+           <div className="d-flex justify-content-end mt-2">
+          <button
+            className="btn btn-secondary btn-sm"
+onClick={() => this.setState({ productOverlayVisible: false, selectedProductIds: [] })}>            Cancel
+          </button>
+        </div>
         </div>
       </div>
     );
@@ -1081,7 +1094,8 @@ const filtered = filteredProducts.filter(p =>
               {this.state.invoices.map((q, i) =>  {
                 let statusClass = "badge-secondary";
                 if (q.status === "Awaiting Approval") statusClass = "badge-warning";
-                else if (q.status === "Submitted") statusClass = "badge-info";
+                else if (q.status === "Amended") statusClass = "badge-info";
+                else if (q.status === "Approved") statusClass = "badge-success";
                 else if (q.status === "Cancelled") statusClass = "badge-danger";
 
                 return (

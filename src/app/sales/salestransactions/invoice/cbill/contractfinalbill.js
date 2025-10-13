@@ -3,17 +3,12 @@ import React, { Component } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { db } from "../../../../../firebase";
-import {
-  collection,
-  getDocs,
-  addDoc,
-  updateDoc,
-  doc,
-  serverTimestamp,
-} from "firebase/firestore";
+import {  collection,  getDocs,  addDoc,  updateDoc,  doc,serverTimestamp,} from "firebase/firestore";
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { toWords } from 'number-to-words';
+
+
 
 class ContractFinalBilling extends Component {
   state = {
@@ -27,10 +22,11 @@ class ContractFinalBilling extends Component {
     contractOverlaySearch: "",
     formData: this.getEmptyForm(),
     notes: "",
+
   };
 
   getEmptyForm() {
-    return {
+    return{
       billType: "Standard",
       billNo: "",
       billDate: new Date().toISOString().split("T")[0],
@@ -38,13 +34,14 @@ class ContractFinalBilling extends Component {
       refNo: "",
       contractId: "",
       contractNo: "",
+      nameofwrk: "",
       customer: "",
       currency: "",
       conversionRate: "",
-      stdDays: 30,
-      changeInvUnitPrice: false,
-      repeat: false,
       amtAgreed: "",
+    prorate: false,
+    discountPercent: 0,
+    discountAmount:'',
       durationFrom: "",
       durationTo: "",
       scheduleDate: "",
@@ -64,16 +61,18 @@ class ContractFinalBilling extends Component {
   }
 
   componentDidMount() {
-    this.fetchContracts();
-    this.fetchBills();
-    this.fetchTaxGroups();
-  }
+  this.fetchContracts();
+  this.fetchBills();
+  this.fetchTaxGroups();
+  this.autoGenerateBills();
+}
 
   fetchContracts = async () => {
-    const snap = await getDocs(collection(db, "contracts"));
-    const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    this.setState({ contracts: data });
-  };
+  const snap = await getDocs(collection(db, "contracts"));
+  const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const filtered = data.filter(c => c.status === 'Approved' || c.status === 'Partial');
+  this.setState({ contracts: filtered });
+};
 
   fetchBills = async () => {
     const snap = await getDocs(collection(db, "finalBills"));
@@ -86,6 +85,83 @@ class ContractFinalBilling extends Component {
     const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     this.setState({ taxGroups: data });
   };
+autoGenerateBills = async () => {
+  const today = new Date();
+  const contractsSnap = await getDocs(collection(db, "contracts"));
+  const contracts = contractsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+    .filter(c => c.autoBill && c.status === "Approved");
+
+  for (const contract of contracts) {
+    let lastTo = new Date(contract.durationTo);
+    let tillDate = contract.tillDate ? new Date(contract.tillDate) : null;
+    let billingType = (contract.billingTypes && contract.billingTypes[0]) || 'yearly';
+    let monthsPerCycle = billingType === 'yearly' ? 12 : billingType === 'half-yearly' ? 6 : 3;
+
+    // Find last bill for this contract
+    const billsSnap = await getDocs(collection(db, "finalBills"));
+    const bills = billsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .filter(b => b.contractId === contract.id);
+
+    let nextFrom = new Date(contract.durationFrom);
+    if (bills.length > 0) {
+      // Get last bill's durationTo
+      const lastBill = bills.reduce((a, b) => new Date(a.durationTo) > new Date(b.durationTo) ? a : b);
+      nextFrom = new Date(lastBill.durationTo);
+      nextFrom.setDate(nextFrom.getDate() + 1);
+    }
+
+    // Generate bills until today < tillDate
+    while (tillDate && nextFrom <= today && nextFrom <= tillDate) {
+      let nextTo = new Date(nextFrom);
+      nextTo.setMonth(nextTo.getMonth() + monthsPerCycle);
+      nextTo.setDate(nextTo.getDate() - 1); // End of cycle
+
+      // Check if bill already exists for this period
+      const exists = bills.some(b => b.durationFrom === nextFrom.toISOString().split('T')[0] && b.durationTo === nextTo.toISOString().split('T')[0]);
+      if (!exists) {
+        // Create bill
+        const billData = {
+          billType: "Standard",
+          billNo: `CB${Math.floor(Math.random() * 100000)}`,
+          billDate: new Date().toISOString().split("T")[0],
+          status: "Yet to Bill",
+          contractId: contract.id,
+          contractNo: contract.contractNo,
+          nameofwrk: contract.nameofwrk,
+          customer: contract.customer,
+          currency: contract.currency,
+          conversionRate: contract.conversionRate,
+          amtAgreed: contract.amtAgreed,
+          durationFrom: nextFrom.toISOString().split('T')[0],
+          durationTo: nextTo.toISOString().split('T')[0],
+          billTo: contract.billTo,
+          shipTo: contract.shipTo,
+          despatchMode: contract.despatchMode,
+          paymentTerms: contract.paymentTerms,
+          freightCharges: contract.freightCharges,
+          freightPercent: contract.freightTaxPercent,
+          freightTaxAmt: contract.freightTaxAmt,
+          packingCharges: contract.packingCharges,
+          lineItems: contract.lineItems.map(item => ({
+            ...item,
+            months: monthsPerCycle,
+            days: 0,
+            qty: item.qty,
+            unitPrice: item.unitPrice,
+            taxGroupNames: item.taxGroupNames,
+            taxAmt: 0,
+            itemTotal: 0
+          })),
+          createdAt: serverTimestamp()
+        };
+        await addDoc(collection(db, "finalBills"), billData);
+      }
+      // Prepare for next cycle
+      nextFrom = new Date(nextTo);
+      nextFrom.setDate(nextFrom.getDate() + 1);
+    }
+  }
+};
 
   formatAddress = (addr) => {
     if (!addr) return '';
@@ -96,51 +172,83 @@ class ContractFinalBilling extends Component {
       addr.zip
     ].filter(Boolean).join('\n');
   };
+  handleInputChange = (field, value) => {
+  this.setState((prev) => ({
+    formData: { ...prev.formData, [field]: value },
+  }), () => {
+    if (field === 'discountPercent') {
+      const amtAgreed = parseFloat(this.state.formData.amtAgreed || 0);
+      const discountPercent = parseFloat(this.state.formData.discountPercent || 0);
+      const discountAmount = ((amtAgreed * discountPercent) / 100).toFixed(2);
+      this.setState(prev => ({
+        formData: { ...prev.formData, discountAmount }
+      }), this.recalculateBillTotals);
+    }
+    if ([
+      'freightCharges', 'freightPercent', 'packingCharges', 'conversionRate',
+      'stdDays', 'amtAgreed', 'discountPercent'
+    ].includes(field)) {
+      this.recalculateBillTotals();
+    }
+  });
+};
+getRecvQtyMap = async (contractId) => {
+  const snap = await getDocs(collection(db, "finalBills"));
+  const approvedBills = snap.docs
+    .map(doc => doc.data())
+    .filter(bill => bill.contractId === contractId && bill.status === "Approved");
+  const recvQtyMap = {};
+  approvedBills.forEach(bill => {
+    (bill.lineItems || []).forEach(item => {
+      const code = item.itemCode;
+      const qty = parseFloat(item.qty || 0);
+      recvQtyMap[code] = (recvQtyMap[code] || 0) + qty;
+    });
+  });
+  return recvQtyMap;
+};
+selectContract = async (contract) => {
+  // Prepare line items from contract
+  const lineItems = (contract.lineItems || []).map(li => ({
+    itemCode: li.itemCode,
+    itemDesc: li.itemDesc,
+    hsnCode: li.hsnCode,
+    uom: li.uom,
+    duration: li.duration || `${contract.durationFrom} to ${contract.durationTo}`,
+    qty: li.qty || '', // user can edit
+    unitPrice: li.unitPrice || '',
+    months: li.months || 1,
+    taxGroupNames: li.taxGroupNames || [],
+    taxAmt: 0,
+    itemTotal: 0,
+    days: '', // for prorate, user can edit
+  }));
 
-  selectContract = (c) => {
-    this.setState((prev) => ({
-      formData: {
-        ...prev.formData,
-        contractId: c.id,
-        contractNo: c.contractNo,
-        customer: c.customer,
-        currency: c.currency,
-        conversionRate: c.conversionRate,
-        stdDays: c.stdDays,
-        amtAgreed: c.amtAgreed,
-        durationFrom: c.contrDurationFrom,
-        durationTo: c.contrDurationTo,
-        scheduleDate: c.scheduleDate || "",
-        billTo: this.formatAddress(c.billTo),
-        shipTo: this.formatAddress(c.shipTo),
-        placeOfDelivery: c.placeOfDelivery || "",
-        despatchMode: c.despatchMode,
-        paymentTerms: c.paymentTerms,
-        freightCharges: c.freightCharges || "",
-        freightPercent: c.freightTaxPercent || "",
-        freightTaxAmt: c.freightTaxAmt || "",
-        packingCharges: c.packingCharges || "",
-        lineItems: (c.lineItems || []).map((li) => ({
-          itemCode: li.itemCode,
-          itemDesc: li.itemDesc,
-          hsnCode: li.hsnCode,
-          uom: li.uom,
-          locator: li.locator || "",
-          onHand: li.onHand || "",
-          billQty: li.qty,
-          unitDayOrWk: li.unitDayOrWk,
-          unitPrice: li.unitPrice,
-          months: li.months,
-          taxGroupNames: li.taxGroupNames || [],
-          taxAmt: li.taxAmt,
-          itemTotal: li.itemTotal,
-          schedule: li.schedule || "",
-        })),
-      },
-      showContractOverlay: false,
-    }), this.recalculateBillTotals);
-  };
-
+  this.setState(prev => ({
+    formData: {
+      ...prev.formData,
+      contractId: contract.id,
+      contractNo: contract.contractNo,
+      nameofwrk: contract.nameofwrk || "",
+      customer: contract.customer,
+      currency: contract.currency,
+      conversionRate: contract.conversionRate,
+      amtAgreed: contract.amtAgreed,
+      durationFrom: contract.durationFrom,
+      durationTo: contract.durationTo,
+      billTo: this.formatAddress(contract.billTo),
+      shipTo: this.formatAddress(contract.shipTo),
+      despatchMode: contract.despatchMode,
+      paymentTerms: contract.paymentTerms,
+      freightCharges: contract.freightCharges || "",
+      freightPercent: contract.freightTaxPercent || "",
+      freightTaxAmt: contract.freightTaxAmt || "",
+      packingCharges: contract.packingCharges || "",
+      lineItems,
+    },
+    showContractOverlay: false,
+  }), this.recalculateBillTotals);
+};
   handleInputChange = (field, value) => {
     this.setState((prev) => ({
       formData: { ...prev.formData, [field]: value },
@@ -154,50 +262,44 @@ class ContractFinalBilling extends Component {
     });
   };
 
-  handleLineItemChange = (idx, field, value) => {
-    const items = [...this.state.formData.lineItems];
-    items[idx] = { ...items[idx], [field]: value };
-
-    // Calculate taxAmt and itemTotal for this line
-    let percent = 0;
-    let amount = 0;
-    (items[idx].taxGroupNames || []).forEach(groupName => {
-      const group = this.state.taxGroups.find(t => t.groupName === groupName);
-      if (group && Array.isArray(group.lineItems)) {
-        group.lineItems.forEach(comp => {
-          const val = parseFloat(comp.percentOrAmt || 0);
-          if (comp.type === 'Percentage') percent += val;
-          if (comp.type === 'Amount') amount += val;
-        });
-      }
-    });
-    const qty = parseFloat(items[idx].billQty || 0);
-    const unitPrice = parseFloat(items[idx].unitPrice || 0);
-    const months = parseFloat(items[idx].months || 1);
-    const unitDayOrWk = parseFloat(items[idx].unitDayOrWk || 1);
-    const stdDays = parseFloat(this.state.formData.stdDays || 30);
-    const baseTotal = qty * unitDayOrWk * unitPrice * months * stdDays;
-    const taxAmt = ((baseTotal * percent) / 100 + amount);
-    items[idx].taxAmt = taxAmt.toFixed(2);
-    items[idx].itemTotal = (baseTotal + taxAmt).toFixed(2);
-
-    this.setState((prev) => ({
-      formData: { ...prev.formData, lineItems: items },
-    }), this.recalculateBillTotals);
-  };
+handleLineItemChange = (idx, field, value) => {
+  const items = [...this.state.formData.lineItems];
+  items[idx] = { ...items[idx], [field]: value };
+  // Calculation
+  const qty = parseFloat(items[idx].qty || 0);
+  const unitPrice = parseFloat(items[idx].unitPrice || 0);
+  const months = parseFloat(items[idx].months || 1);
+  const days = parseFloat(items[idx].days || 0);
+  let totalMonths = months;
+  if (days > 0) {
+    let daysInMonth = 30;
+    const { durationFrom } = this.state.formData;
+    if (durationFrom) {
+      const d = new Date(durationFrom);
+      daysInMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    }
+    totalMonths = (months) + (days / daysInMonth);
+  }
+  const baseTotal = qty * unitPrice * totalMonths;
+  items[idx].itemTotal = baseTotal.toFixed(2);
+  this.setState((prev) => ({
+    formData: { ...prev.formData, lineItems: items },
+  }), this.recalculateBillTotals);
+};
 
 recalculateBillTotals = () => {
-  const { lineItems, freightCharges, freightPercent, packingCharges, conversionRate } = this.state.formData;
+  const { lineItems, freightCharges, freightPercent, packingCharges, conversionRate, discountAmount } = this.state.formData;
   let billValue = 0;
   let taxAmt = 0;
   (lineItems || []).forEach(item => {
     billValue += parseFloat(item.itemTotal || 0);
     taxAmt += parseFloat(item.taxAmt || 0);
   });
-
-  // Freight + packing
   const freightTaxAmt = (parseFloat(freightCharges || 0) * parseFloat(freightPercent || 0)) / 100;
   billValue += parseFloat(freightCharges || 0) + parseFloat(packingCharges || 0) + freightTaxAmt;
+
+  // Apply discount
+  billValue -= parseFloat(discountAmount || 0);
 
   // Apply conversion rate if needed
   let finalValue = billValue;
@@ -225,12 +327,14 @@ handleSubmit = async (e) => {
       ...formData,
       notes: this.state.notes,
       createdAt: serverTimestamp(),
+      status: "Awaiting For Approval"
     };
     if (editingId) {
       await updateDoc(doc(db, "finalBills", editingId), saveData);
     } else {
       saveData.billNo = `CB${1000 + bills.length}`;
       await addDoc(collection(db, "finalBills"), saveData);
+      
     }
     await this.fetchBills(); // Ensure bills are refreshed before hiding form
     this.setState({
@@ -272,13 +376,14 @@ showContractBillingPDFWithOrg = async (bill) => {
   };
 
   // 2. Enrich line items
-  const enrichedItems = (bill.lineItems || []).map(item => ({
-    ...item,
-    hsnCode: item.hsnCode || '',
-    uom: item.uom || '',
-    itemDesc: item.itemDesc || '',
-    taxGroupNames: item.taxGroupNames || (item.taxGroupName ? item.taxGroupName.split(',').map(s => s.trim()) : [])
-  }));
+// In showContractBillingPDFWithOrg
+const enrichedItems = (bill.lineItems || []).filter(item => parseFloat(item.qty || 0) > 0).map(item => ({
+  ...item,
+  hsnCode: item.hsnCode || '',
+  uom: item.uom || '',
+  itemDesc: item.itemDesc || '',
+  taxGroupNames: item.taxGroupNames || (item.taxGroupName ? item.taxGroupName.split(',').map(s => s.trim()) : [])
+}));
 
   // 3. Totals
   const subtotal = enrichedItems.reduce((sum, item) =>
@@ -412,7 +517,7 @@ showContractBillingPDFWithOrg = async (bill) => {
               <td style="border:1px solid #011b56;">${item.billQty}</td>
               <td style="border:1px solid #011b56;">${item.unitPrice}</td>
               <td style="border:1px solid #011b56;">${item.months}</td>
-              <td style="border:1px solid #011b56;">${gstLabel}</td>
+<td style="border:1px solid #011b56;">${gstLabel}</td>
               <td style="border:1px solid #011b56;">${item.itemTotal}</td>
             </tr>`;
         }).join('')}
@@ -552,7 +657,7 @@ showContractBillingPDFWithOrg = async (bill) => {
           
         </div>
         <div className="form-row">
-          <div className="form-group col-md-4">
+          <div className="form-group col-md-2">
             <label>Contract</label>
             <input
               className="form-control"
@@ -572,8 +677,8 @@ showContractBillingPDFWithOrg = async (bill) => {
             <input type="number" className="form-control" value={f.conversionRate} onChange={e => this.handleInputChange("conversionRate", e.target.value)} />
           </div>
           <div className="form-group col-md-2">
-            <label>Std Days</label>
-            <input type="number" className="form-control" value={f.stdDays} onChange={e => this.handleInputChange("stdDays", e.target.value)} />
+            <label>Name of Work</label>
+            <input className="form-control" value={f.nameofwrk} readOnly />
           </div>
           <div className="form-group col-md-2">
             <label>Change Inv Unit Price</label>
@@ -604,16 +709,42 @@ showContractBillingPDFWithOrg = async (bill) => {
           </div>
           </div>
           <div className="form-row">
-          <div className="form-group col-md-3">
+          <div className="form-group col-md-2">
             <label>Tax Amount (INR)</label>
             <input className="form-control" value={f.taxAmt} readOnly />
           </div>
-          <div className="form-group col-md-3">
+          <div className="form-group col-md-2">
             <label>Bill Value (INR)</label>
             <input className="form-control" value={f.billValue} readOnly />
           </div>
+  <div className="form-group col-md-2">
+    <label>Prorate</label>
+    <input
+      type="checkbox"
+      checked={this.state.formData.prorate}
+      onChange={e => this.handleInputChange("prorate", e.target.checked)}
+    />
+  </div>
+  <div className="form-group col-md-2">
+    <label>Discount (%)</label>
+    <input
+      type="number"
+      className="form-control"
+      value={this.state.formData.discountPercent}
+      onChange={e => this.handleInputChange("discountPercent", e.target.value)}
+    />
+  </div>
+  <div className="form-group col-md-2">
+    <label>Discount Amount</label>
+    <input
+      type="number"
+      className="form-control"
+      value={this.state.formData.discountAmount}
+      readOnly
+    />
+  </div>
+</div>
         </div>
-      </div>
     );
   };
 
@@ -667,82 +798,78 @@ showContractBillingPDFWithOrg = async (bill) => {
     );
   };
 
-  renderLineItems = () => {
-    const items = this.state.formData.lineItems || [];
-    return (
-      <div className="table-responsive">
-        <table className="table table-bordered">
-          <thead>
-            <tr>
-              <th>Item Code</th>
-              <th>Item Desc</th>
-              <th>HSN/SAC</th>
-              <th>UOM</th>
-              <th>Locator</th>
-              <th>On Hand</th>
-              <th>Bill Qty</th>
-              <th>Unit/Day</th>
-              <th>Unit Price</th>
-              <th>Months</th>
-              <th>Tax Group</th>
-              <th>Tax Amount</th>
-              <th>Item Total</th>
-              <th>Schedule</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((it, i) => (
-              <tr key={i}>
-                <td>{it.itemCode}</td>
-                <td>{it.itemDesc}</td>
-                <td>{it.hsnCode}</td>
-                <td>{it.uom}</td>
-                <td>{it.locator}</td>
-                <td>{it.onHand}</td>
-                <td>
-                  <input
-                    type="number"
-                    className="form-control"
-                    value={it.billQty}
-                    onChange={(e) =>
-                      this.handleLineItemChange(i, "billQty", e.target.value)
-                    }
-                  />
-                </td>
-                <td>
-                  <input
-                    type="number"
-                    className="form-control"
-                    value={it.unitDayOrWk}
-                    onChange={(e) =>
-                      this.handleLineItemChange(i, "unitDayOrWk", e.target.value)
-                    }
-                  />
-                </td>
-                <td>
-                  <input
-                    type="number"
-                    className="form-control"
-                    value={it.unitPrice}
-                    onChange={(e) =>
-                      this.handleLineItemChange(i, "unitPrice", e.target.value)
-                    }
-                  />
-                </td>
-                <td>
-                  <input
-                    type="number"
-                    className="form-control"
-                    value={it.months}
-                    onChange={(e) =>
-                      this.handleLineItemChange(i, "months", e.target.value)
-                    }
-                  />
-                </td>
+renderLineItems = () => {
+  const items = this.state.formData.lineItems || [];
+  const isINR = (this.state.formData.currency || 'INR') === 'INR';
+  const showProrate = this.state.formData.prorate;
+
+  // Calculate days in month from duration
+  let daysInMonth = 30;
+  const { durationFrom, durationTo } = this.state.formData;
+  if (durationFrom && durationTo) {
+    const from = new Date(durationFrom);
+    const to = new Date(durationTo);
+    daysInMonth = Math.max(1, (to - from) / (1000 * 60 * 60 * 24));
+  }
+
+  return (
+    <div className="table-responsive">
+      <table className="table table-bordered" style={{minWidth: '800px'}}>
+        <thead>
+          <tr>
+            <th>Item Code</th>
+            <th>Item Desc</th>
+            <th>Qty</th>
+            <th>Unit Price</th>
+            {showProrate && <th>Days</th>}
+            <th>Months</th>
+            {isINR && <th>Tax Group</th>}
+            <th>Tax Amount</th>
+            <th>Item Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((it, i) => (
+            <tr key={i}>
+              <td>{it.itemCode}</td>
+              <td>{it.itemDesc}</td>
+              <td>
+                <input
+                  type="number"
+                  className="form-control"
+                  value={it.qty}
+                  onChange={e => this.handleLineItemChange(i, "qty", e.target.value)}
+                />
+              </td>
+              <td>
+                <input
+                  type="number"
+                  className="form-control"
+                  value={it.unitPrice}
+                  onChange={e => this.handleLineItemChange(i, "unitPrice", e.target.value)}
+                />
+              </td>
+              <td>
+  <input
+    type="number"
+    className="form-control"
+    value={it.days || ''}
+    onChange={e => this.handleLineItemChange(i, "days", e.target.value)}
+  />
+</td>
+<td>
+  <input
+    type="number"
+    className="form-control"
+    value={it.months}
+    onChange={e => this.handleLineItemChange(i, "months", e.target.value)}
+  />
+</td>
+              {isINR && (
                 <td>
                   <select
                     className="form-control"
-                    value={it.taxGroupNames[0] || ''}
+                    value={it.taxGroupNames?.[0] || ''}
                     onChange={e => {
                       const val = e.target.value;
                       const arr = val ? [val] : [];
@@ -755,24 +882,16 @@ showContractBillingPDFWithOrg = async (bill) => {
                     ))}
                   </select>
                 </td>
-                <td>{it.taxAmt}</td>
-                <td>{it.itemTotal}</td>
-                <td>
-                  <input
-                    className="form-control"
-                    value={it.schedule}
-                    onChange={(e) =>
-                      this.handleLineItemChange(i, "schedule", e.target.value)
-                    }
-                  />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  };
+              )}
+              <td>{it.taxAmt}</td>
+              <td>{it.itemTotal}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
 
   renderTabs = () => {
     const tabs = ["Billing Details", "Port & Terms", "Notes"];
@@ -871,9 +990,9 @@ renderNotesTab = () => (
   {this.state.bills.map((b, i) => {
     let statusClass = "badge-secondary";
     if (b.status === "Entered") statusClass = "badge-warning";
-    else if (b.status === "Submitted") statusClass = "badge-info";
+    else if (b.status === "Yet to Bill") statusClass = "badge-info";
     else if (b.status === "Cancelled") statusClass = "badge-danger";
-    else if (b.status === "Approved") statusClass = "badge-success"; // optional extra
+    else if (b.status === "Approved") statusClass = "badge-success"; 
 
     return (
       <tr key={i}>

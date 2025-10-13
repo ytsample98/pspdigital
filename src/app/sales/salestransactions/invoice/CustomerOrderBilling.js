@@ -3,7 +3,8 @@ import { db } from '../../../../firebase';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { toWords } from 'number-to-words';
-import { collection, getDocs, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { runTransaction,getDoc,query,where } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, doc, serverTimestamp,onSnapshot } from 'firebase/firestore';
 
 
 const amount = 12345678;
@@ -25,6 +26,7 @@ class CustomerOrderBilling extends Component {
     showTaxOverlay: false,
     currentTaxIdx: null,
     notes: '',
+    searchTerm: '',
     formData: this.getEmptyCOBillingForm()
   };
 
@@ -57,19 +59,66 @@ class CustomerOrderBilling extends Component {
       notes: ''
     };
   }
+   getBilledQtyMap = async (orderNo) => {
+  const snap = await getDocs(collection(db, 'cobilling'));
+  const approved = snap.docs
+    .map(doc => doc.data())
+    .filter(inv => inv.customerOrderId === orderNo && inv.status === "Approved");
+  // Map: itemCode -> total billed qty
+  const billedQtyMap = {};
+  approved.forEach(inv => {
+    (inv.lineItems || []).forEach(item => {
+      const code = item.itemCode;
+      const qty = parseFloat(item.qty || 0);
+      billedQtyMap[code] = (billedQtyMap[code] || 0) + qty;
+    });
+  });
+  return billedQtyMap;
+};
+componentDidMount() {
+  this.subscribeToCOBilling();
+  this.fetchOrders();
+  this.fetchCustomers();
+  this.fetchTaxGroups();
+  this.fetchDespatchModes();
+  this.fetchPaymentTerms();
+}
 
-  componentDidMount() {
-    this.fetchCOBilling();
-    this.fetchOrders();
-    this.fetchCustomers();
-    this.fetchTaxGroups();
-    this.fetchDespatchModes();
-    this.fetchPaymentTerms();
-  }
+componentWillUnmount() {
+  if (this._unsubCOB) this._unsubCOB();
+}
+handleOverlayClose = () => {
+  this.setState({
+    overlayType: '',
+    orderOverlaySearch: '',
+    productOverlayVisible: false,
+    showOrderOverlay: false,
+    currentTaxLineIdx: null,
+    selectedProductIds: [],
+  });
+};
+subscribeToCOBilling = () => {
+  this._unsubCOB = onSnapshot(collection(db, 'cobilling'), snap => {
+    const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    data.sort((a,b)=>{
+      const dateA=new Date(a.cobillingDate || a.createdAt?.toDate?.() || a.createdAt || 0);
+      const dateB=new Date(b.cobillingDate || b.createdAt?.toDate?.() || b.createdAt || 0);
+      return dateB - dateA;
+    });
+    this.setState({ cobilling: data.reverse() });
+  }, err => {
+    console.error('cobilling snapshot error', err);
+  });
+};
 
   fetchCOBilling = async () => {
     const snap = await getDocs(collection(db, 'cobilling'));
     const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    data.sort((a,b)=>{
+      const dateA=new Date(a.cobillingDate || a.createdAt?.toDate?.() || a.createdAt || 0);
+      const dateB=new Date(b.cobillingDate || b.createdAt?.toDate?.() || b.createdAt || 0);
+      return dateB - dateA;
+    });
     this.setState({ cobilling: data.reverse() });
   };
 
@@ -106,46 +155,53 @@ class CustomerOrderBilling extends Component {
   showOrderOverlay = () => this.setState({ showOrderOverlay: true, orderOverlaySearch: '' });
   hideOrderOverlay = () => this.setState({ showOrderOverlay: false, orderOverlaySearch: '' });
 
-  selectOrderForInvoice = (order) => {
-    const customerObj = this.state.customers.find(
-      c => c.custname === order.customer || c.custcode === order.customer
-    );
-    this.setState(prev => ({
-      formData: {
-        ...prev.formData,
-        customerOrderId: order.orderNo,
-        customerOrderCompany: order.customer,
-        customerOrderDate: order.orderDate,
-        customer: order.customer,
-        customerCode: customerObj ? customerObj.custcode : '', 
-         refNo: order.orderNo,
-         discountPercent: order.discountPercent || 0,
-        discountAmount: order.discountAmount || 0,
-        afterDiscountValue: order.afterDiscountValue || 0,
-        billTo: customerObj ? this.formatAddress(customerObj.billTo) : '',
-        shipTo: customerObj ? this.formatAddress(customerObj.shipTo) : '',
-        currency: customerObj ? customerObj.currency || '' : '',
-        despatchMode: order.despatchMode || '',
-        paymentTerms: order.paymentTerms || '',
-        freightCharges: order.freightCharges || '',
-        freighttaxAmount: order.freighttaxAmount || '',
-        packingCharges: order.packingCharges || '',
-        lineItems: (order.lineItems || []).map(item => ({
-          itemCode: item.itemCode || '',
-          itemDescription: item.itemDescription || '',
-          custPartCode: item.custPartCode || '',
-          hsnCode: item.hsnCode || '',
-          locator: item.locator || '',
-          uom: item.uom || '',
-          onHand: item.onHand || 0,
-          unitPrice: item.unitPrice || 0,
-          orderQty: item.qty || 0,
-          recvQty: '', // will be calculated after approval
-          qty: '',
-          taxGroupNames: item.taxGroupNames || [],
-          taxAmt: item.taxAmt || 0,
-          total: this.calcItemTotal(item.qty || item.orderQty || 1, item.unitPrice || 0, item.taxAmt || 0)
-        }))
+ selectOrderForInvoice = async (order) => {
+  const customerObj = this.state.customers.find(
+    c => c.custname === order.customer || c.custcode === order.customer
+  );
+  const billedQtyMap = await this.getBilledQtyMap(order.orderNo);
+
+  this.setState(prev => ({
+    formData: {
+      ...prev.formData,
+      customerOrderId: order.orderNo,
+      customerOrderCompany: order.customer,
+      customerOrderDate: order.orderDate,
+      customer: order.customer,
+      customerCode: customerObj ? customerObj.custcode : '',
+      refNo: order.orderNo,
+      discountPercent: order.discountPercent || 0,
+      discountAmount: order.discountAmount || 0,
+      afterDiscountValue: order.afterDiscountValue || 0,
+      billTo: customerObj ? this.formatAddress(customerObj.billTo) : '',
+      shipTo: customerObj ? this.formatAddress(customerObj.shipTo) : '',
+      currency: customerObj ? customerObj.currency || '' : '',
+      despatchMode: order.despatchMode || '',
+      paymentTerms: order.paymentTerms || '',
+      freightCharges: order.freightCharges || '',
+      freighttaxAmount: order.freighttaxAmount || '',
+      packingCharges: order.packingCharges || '',
+      lineItems: (order.lineItems || []).map(item => {
+        const alreadyBilled = billedQtyMap[item.itemCode] || 0;
+        const orderQty = parseFloat(item.qty || item.orderQty || 0);
+        const recvQty = Math.max(orderQty - alreadyBilled, 0);
+        return {
+            itemCode: item.itemCode || '',
+            itemDescription: item.itemDescription || '',
+            custPartCode: item.custPartCode || '',
+            hsnCode: item.hsnCode || '',
+            locator: item.locator || '',
+            uom: item.uom || '',
+            onHand: item.onHand || 0,
+            unitPrice: item.unitPrice || 0,
+            orderQty: orderQty,
+            recvQty: recvQty, // remaining to bill
+            qty: '', // user will enter this
+            taxGroupNames: item.taxGroupNames || [],
+            taxAmt: item.taxAmt || 0,
+            total: this.calcItemTotal('', item.unitPrice || 0, item.taxAmt || 0)
+          };
+        })
       },
       showOrderOverlay: false
     }));
@@ -180,14 +236,19 @@ class CustomerOrderBilling extends Component {
     }));
   };
 
-  handleLineItemChange = (idx, field, value) => {
+handleLineItemChange = (idx, field, value) => {
     const updatedItems = [...this.state.formData.lineItems];
-    updatedItems[idx] = { ...updatedItems[idx], [field]: value };
+    let val = value;
+    if (field === 'qty') {
+      const maxQty = parseFloat(updatedItems[idx].recvQty || 0);
+      val = Math.max(0, Math.min(parseFloat(value || 0), maxQty));
+    }
+    updatedItems[idx] = { ...updatedItems[idx], [field]: val };
     if (field === 'qty' || field === 'unitPrice') {
       // recalculate taxAmt and total
       const taxAmt = this.calcTaxAmt(updatedItems[idx]);
       updatedItems[idx].taxAmt = taxAmt;
-      updatedItems[idx].total = this.calcItemTotal(value, updatedItems[idx].unitPrice, taxAmt);
+      updatedItems[idx].total = this.calcItemTotal(val, updatedItems[idx].unitPrice, taxAmt);
     }
     this.setState(prev => ({
       formData: {
@@ -196,7 +257,43 @@ class CustomerOrderBilling extends Component {
       }
     }), this.recalculateBillTotals);
   };
+ approveInvoice = async (invoiceId) => {
+    const invoiceRef = doc(db, "cobilling", invoiceId);
+    const invoiceSnap = await getDoc(invoiceRef);
+    if (!invoiceSnap.exists()) return alert("Invoice not found!");
+    const invoice = invoiceSnap.data();
+    const orderSnap = await getDocs(
+      query(collection(db, "orders"), where("orderNo", "==", invoice.customerOrderId))
+    );
+    if (orderSnap.empty) return alert("Order not found!");
+    const orderDoc = orderSnap.docs[0];
+    const orderRef = doc(db, "orders", orderDoc.id);
 
+    await runTransaction(db, async (transaction) => {
+      const orderData = (await transaction.get(orderRef)).data();
+      const updatedLineItems = (orderData.lineItems || []).map(item => {
+        const invItem = (invoice.lineItems || []).find(li => li.itemCode === item.itemCode);
+        const billedQty = parseFloat(item.billedQty || 0);
+        const addQty = invItem ? parseFloat(invItem.qty || 0) : 0;
+        const orderQty = parseFloat(item.qty || item.orderQty || 0);
+        const newBilledQty = billedQty + addQty;
+        return {
+          ...item,
+          billedQty: newBilledQty,
+          status: newBilledQty >= orderQty ? "Completed" : "Partial"
+        };
+      });
+      const allCompleted = updatedLineItems.every(li => (parseFloat(li.billedQty || 0) >= parseFloat(li.qty || li.orderQty || 0)));
+      transaction.update(orderRef, {
+        lineItems: updatedLineItems,
+        status: allCompleted ? "Completed" : "Partial"
+      });
+      transaction.update(invoiceRef, { status: "Approved" });
+    });
+    alert("Invoice approved and order updated!");
+    this.fetchCOBilling();
+    this.fetchOrders();
+  };
   recalculateBillTotals = () => {
   const { lineItems } = this.state.formData;
   let taxAmount = 0;
@@ -581,98 +678,191 @@ let taxHtml = `<div style="font-family:Arial; padding:20px; width:100%;">
     this.fetchCOBilling();
   };
 
-  renderOrderOverlay = () => {
-    const { orders, orderOverlaySearch } = this.state;
-    const filtered = orders.filter(o =>
-      (o.orderNo || '').toLowerCase().includes(orderOverlaySearch.toLowerCase()) ||
-      (o.customer || '').toLowerCase().includes(orderOverlaySearch.toLowerCase())
-    );
-    return (
-      <div className="custom-overlay">
-        <div className="custom-overlay-content">
-          <div className="custom-overlay-title">Select Customer Order</div>
-          <input
-            type="text"
-            className="form-control mb-2"
-            placeholder="Search by ID or Company..."
-            value={orderOverlaySearch}
-            onChange={e => this.setState({ orderOverlaySearch: e.target.value })}
-          />
-          <div style={{ maxHeight: 300, overflowY: 'auto' }}>
-            <table className="table table-bordered table-sm">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Company</th>
-                  <th>Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((o, i) => (
-                  <tr key={o.id || i} onClick={() => this.selectOrderForInvoice(o)} style={{ cursor: 'pointer' }}>
-                    <td>{o.orderNo}</td>
-                    <td>{o.customer}</td>
-                    <td>{o.orderDate}</td>
-                  </tr>
-                ))}
-                {filtered.length === 0 && (
-                  <tr>
-                    <td colSpan={3} className="text-center">No orders found</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          <button className="btn btn-secondary btn-sm mt-2" onClick={this.hideOrderOverlay}>Cancel</button>
-        </div>
-      </div>
-    );
-  };
+renderOrderOverlay = () => {
+  const { orders, orderOverlaySearch = '', currentPage = 1 } = this.state;
 
-  renderTaxOverlay = () => {
-    const { taxGroups, currentTaxIdx, formData } = this.state;
-    if (currentTaxIdx === null) return null;
-    const item = formData.lineItems[currentTaxIdx];
-    const selected = new Set(item.taxGroupNames || []);
-    return (
-      <div style={{
-        position: 'fixed', zIndex: 1000, top: '10%', left: '15%',
-        background: '#fff', border: '1px solid #ccc', padding: '20px',
-        boxShadow: '0 0 10px rgba(0,0,0,0.3)', width: '70%',
-        maxHeight: '70vh', overflowY: 'auto'
-      }}>
-        <h5>Select Tax Groups</h5>
-        <table className="table table-sm table-bordered">
-          <thead>
-            <tr><th></th><th>Group</th><th>Components</th><th>%</th></tr>
-          </thead>
-          <tbody>
-            {taxGroups.map(tg => (
-              <tr key={tg.groupName}>
-                <td>
-                  <input
-                    type="checkbox"
-                    checked={selected.has(tg.groupName)}
-                    onChange={e =>
-                      this.toggleTaxGroupSelection(tg.groupName, currentTaxIdx, e.target.checked)
-                    }
-                  />
-                </td>
-                <td>{tg.groupName}</td>
-                <td>{tg.lineItems.map(li => li.component).join(', ')}</td>
-                <td>{tg.lineItems.map(li => li.percentOrAmt).join(', ')}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <div className="text-right mt-3">
-          <button className="btn btn-sm btn-success" onClick={() => this.setState({ showTaxOverlay: false, currentTaxIdx: null })}>
-            Done
-          </button>
+  const filtered = orders.filter(o =>
+    (o.orderNo || '').toLowerCase().includes(orderOverlaySearch.toLowerCase()) ||
+    (o.customer || '').toLowerCase().includes(orderOverlaySearch.toLowerCase())
+  );
+
+  const itemsPerPage = 10;
+  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+  const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+
+  return (
+    <div className="custom-overlay">
+      <div className="custom-overlay-content">
+        <div className="d-flex justify-content-between align-items-center mb-2">
+        <div className="custom-overlay-title">Select Customer Order</div>
+           <i
+              className="mdi mdi-close-box-outline"
+              style={{ fontSize: "24px", color: "#2196F3", cursor: "pointer" }}
+              onClick={this.handleOverlayClose}
+              aria-label="Close"
+              type="button"
+            ></i>
         </div>
+        <input
+          type="text"
+          className="form-control mb-2"
+          placeholder="Search by ID or Company..."
+          value={orderOverlaySearch}
+          onChange={e => this.setState({ orderOverlaySearch: e.target.value, currentOrderPage: 1 })}
+        />
+
+        <div  style={{ maxHeight: 300, overflowY: 'auto' }}>
+          <table className="table table-bordered table-sm">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Company</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginated.map((o, i) => (
+                <tr
+                  key={o.id || i}
+                  onClick={() => this.selectOrderForInvoice(o)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <td>{o.orderNo}</td>
+                  <td>{o.customer}</td>
+                  <td>{o.orderDate}</td>
+                </tr>
+              ))}
+              {paginated.length === 0 && (
+                <tr>
+                  <td colSpan={3} className="text-center">No orders found</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+<nav aria-label="Product pagination example" style={{ marginTop: 12 }}>
+          <ul className="pagination justify-content-end mb-0">
+            <li className={`page-item ${currentPage === 1 ? "disabled" : ""}`}>
+              <button
+                className="page-link"
+                aria-label="Previous"
+                onClick={() => this.setState({ currentPage: Math.max(currentPage - 1, 1) })}
+              >
+                <span aria-hidden="true">&laquo;</span>
+              </button>
+            </li>
+            {[...Array(totalPages)].map((_, idx) => (
+              <li key={idx} className={`page-item ${currentPage === idx + 1 ? "active" : ""}`}>
+                <button
+                type='button'
+                  className="page-link"
+                  onClick={() => this.setState({ currentPage: idx + 1 })}
+                >
+                  {idx + 1}
+                </button>
+              </li>
+            ))}
+            <li className={`page-item ${currentPage === totalPages ? "disabled" : ""}`}>
+              <button
+              type="button"
+                className="page-link"
+                aria-label="Next"
+                onClick={() => this.setState({ currentPage: Math.min(currentPage + 1, totalPages) })}
+              >
+                <span aria-hidden="true">&raquo;</span>
+              </button>
+            </li>
+          </ul>
+        </nav>
+      
       </div>
-    );
-  };
+    </div>
+  );
+};
+
+
+ renderTaxOverlay = () => {
+  const { taxGroups, currentTaxIdx, formData, taxSearch = ''} = this.state;
+  if (currentTaxIdx === null) return null;
+  const item = formData.lineItems[currentTaxIdx];
+  const selected = new Set(item.taxGroupNames || []);
+
+  const filtered = taxGroups.filter(tg =>
+    tg.groupName.toLowerCase().includes(taxSearch.toLowerCase())
+  );
+
+  return (
+    <div className="custom-overlay">
+      <div className="custom-overlay-content">
+      <div className="d-flex justify-content-between align-items-center mb-2">
+        <div className="custom-overlay-title">Select Tax Groups</div>
+        <div>
+        <button
+    type="submit"
+    className="btn btn-success btn-sm float-start"
+    onClick={() => this.setState({ showTaxOverlay: false, currentTaxIdx: null })}
+  >
+    Done
+  </button>
+<i className="mdi mdi-close-box-outline"
+              style={{ fontSize: "24px", color: "#2196F3", cursor: "pointer" }} 
+              onClick={this.handleOverlayClose}
+              aria-label="Close"
+              type="button"
+            >
+            </i>
+            </div>
+        <input
+          type="text"
+          className="form-control mb-2"
+          placeholder="Search Tax Group..."
+          value={taxSearch}
+          onChange={e => this.setState({ taxSearch: e.target.value, currentTaxPage: 1 })}
+        />
+
+          <table className="table table-sm table-bordered">
+<thead style={{ background: '#f4f6fa' }}>
+              <tr>
+                <th style={{ width: '5%' }}></th>
+                <th style={{ width: '25%' }}>Group</th>
+                <th style={{ width: '50%' }}>Components</th>
+                <th style={{ width: '20%' }}>%</th>
+              </tr>
+            </thead>
+            <tbody>
+              {taxGroups.map(tg => (
+                <tr key={tg.groupName}>
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={selected.has(tg.groupName)}
+                      onChange={e =>
+                        this.toggleTaxGroupSelection(tg.groupName, currentTaxIdx, e.target.checked)
+                      }
+                    />
+                  </td>
+                  <td>{tg.groupName}</td>
+                  <td>{tg.lineItems.map(li => li.component).join(', ')}</td>
+                  <td>{tg.lineItems.map(li => li.percentOrAmt).join(', ')}</td>
+                </tr>
+              ))}
+              {taxGroups.length === 0 && (
+                <tr>
+                  <td colSpan="4" className="text-center">No tax groups found</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        
+
+      </div>
+    </div>
+  );
+};
+
 
   renderTabs = () => {
     const { activeTab } = this.state;
@@ -800,7 +990,7 @@ let taxHtml = `<div style="font-family:Arial; padding:20px; width:100%;">
         <div className="form-group col-md-2">
           <label>After Discount Value</label>
           <input type="number" className="form-control form-control-sm"
-            value={formData.afterDiscountValue}
+            value={formData.discountPercent > 0 ? formData.afterDiscountValue : ""}
             readOnly
           />
         </div>
@@ -834,7 +1024,7 @@ let taxHtml = `<div style="font-family:Arial; padding:20px; width:100%;">
                   <td>{item.hsnCode}</td>
                   <td>{item.locator}</td>
                   <td>{item.uom}</td>
-                  <td>{item.onHand}</td>
+                  <td>{item.onHand}</td> 
                   <td>{item.unitPrice}</td>
                   <td>{item.orderQty}</td>
                   <td>{item.recvQty}</td>
@@ -945,8 +1135,10 @@ let taxHtml = `<div style="font-family:Arial; padding:20px; width:100%;">
             {activeTab === 1 && this.renderCommercialTab()}
             {activeTab === 2 && this.renderNotesTab()}
             <div className="fixed-card-footer text-right p-3 border-top bg-white">
-              <button type="submit" className="btn btn-success mr-2">Save Invoice</button>
-              <button type="button" className="btn btn-secondary" onClick={() => this.setState({ showForm: false, editingId: null, formData: this.getEmptyCOBillingForm(), notes: '' })}>Cancel</button>
+              <button type="button" className="btn btn-secondary mr-2" 
+              onClick={() => this.setState({ showForm: false, editingId: null, formData: this.getEmptyCOBillingForm(), notes: '' })}>
+                Cancel</button>
+              <button type="submit" className="btn btn-success">Save Invoice</button>
             </div>
           </div>
         </form>
@@ -959,7 +1151,16 @@ let taxHtml = `<div style="font-family:Arial; padding:20px; width:100%;">
       <div className="card-body">
         <div className="d-flex justify-content-between align-items-center mb-3">
           <h4 className="card-title">Customer Order Billing</h4>
-          <button className="btn btn-primary" onClick={() => this.setState({ showForm: true })}>Create</button>
+          <div className="d-flex align-items-center" style={{ gap: '10px', width: '40%' }}>
+          <input
+              type="text"
+              className="form-control"
+              placeholder="Search by Bill No, Customer, Status, Date..."
+              value={this.state.searchTerm}
+              onChange={(e) => this.setState({ searchTerm: e.target.value })}
+            />
+            <button className="btn btn-primary" onClick={() => this.setState({ showForm: true })}>Create</button>
+          </div>
         </div>
         <div className="table-responsive">
           <table className="table table-bordered table-hover">
@@ -975,41 +1176,79 @@ let taxHtml = `<div style="font-family:Arial; padding:20px; width:100%;">
                 <th>Print</th>
               </tr>
             </thead>
-            <tbody>
-              {this.state.cobilling.map((inv, i) => (
-                <tr key={i}>
-                  <td>
-                {(inv.status === "Entered" || inv.status === "Awaiting Approval") ? (
-                  <button
-                    className="btn btn-link p-0"
-                    style={{ color: "#2196F3", cursor: "pointer" }}
-                    onClick={() => this.setState({ showForm: true, editingId: inv.id, formData: { ...inv } })}
-                  >
-                    {inv.cobillingNo}
-                  </button>
-                ) : (
-                  inv.cobillingNo
-                )}
-              </td>
-                  <td>{inv.customerOrderId}</td>
-                  <td>{inv.customer}</td>
-                  <td>{inv.cobillingDate}</td>
-                  <td>{inv.billValue}</td>
-                  <td>{inv.afterDiscountValue}</td>
-                  <td>{inv.status}</td>
-                  <td>
-                      <i
-                        className="mdi mdi-printer menu-icon"
-                        onClick={() => this.showCoBillingPDFWithOrg(inv)}
-                        style={{ fontSize: '24px', color: '#2196F3', cursor: 'pointer' }}
-                      ></i>
-                    </td>
-                </tr>
-              ))}
-              {this.state.cobilling.length === 0 && (
-                <tr><td colSpan="6" className="text-center">No cobilling found.</td></tr>
-              )}
-            </tbody>
+<tbody>
+  {this.state.cobilling
+    .filter((inv) => {
+      const term = this.state.searchTerm.toLowerCase();
+      if (!term) return true; // no filter if empty
+
+      return (
+        (inv.cobillingNo || "").toLowerCase().includes(term) ||
+        (inv.customerOrderId || "").toLowerCase().includes(term) ||
+        (inv.customer || "").toLowerCase().includes(term) ||
+        (inv.cobillingDate || "").toLowerCase().includes(term) ||
+        (inv.status || "").toLowerCase().includes(term) ||
+        (inv.billValue?.toString() || "").toLowerCase().includes(term) ||
+        (inv.afterDiscountValue?.toString() || "").toLowerCase().includes(term)
+      );
+    }).map((inv, i) => {
+    let statusClass = "badge-secondary";
+    if (inv.status === "Approved") statusClass = "badge-success";
+    else if (inv.status === "Amended") statusClass = "badge-info";
+    else if (inv.status === "Cancelled") statusClass = "badge-danger";
+    else if (inv.status === "Awaiting Approval" || inv.status === "Pending") statusClass = "badge-warning";
+    else if (inv.status === "Partial") statusClass = "badge-secondary"; // ✅ new option
+
+    return (
+      <tr key={i}>
+        <td>
+            <button
+              className="btn btn-link p-0"
+              style={{ color: "#2196F3", cursor: "pointer" }}
+              onClick={() =>
+                this.setState({
+                  showForm: true,
+                  editingId: inv.id,
+                  formData: { ...inv }
+                })
+              }
+            >
+              {inv.cobillingNo}
+            </button>
+        </td>
+        <td>{inv.customerOrderId}</td>
+        <td>{inv.customer}</td>
+        <td>{inv.cobillingDate}</td>
+        <td>{inv.billValue}</td>
+        <td>{inv.afterDiscountValue}</td>
+        <td>
+          <label
+            className={`badge ${statusClass}`}
+            style={{ fontSize: "14px" }}
+          >
+            {inv.status}
+          </label>
+        </td>
+        <td>
+          <i
+            className="mdi mdi-printer menu-icon"
+            onClick={() => this.showCoBillingPDFWithOrg(inv)}
+            style={{ fontSize: "24px", color: "#2196F3", cursor: "pointer" }}
+          ></i>
+        </td>
+        
+      </tr>
+    );
+  })}
+  {this.state.cobilling.length === 0 && (
+    <tr>
+      <td colSpan="8" className="text-center">
+        No cobilling found.
+      </td>
+    </tr>
+  )}
+</tbody>
+
           </table>
         </div>
       </div>

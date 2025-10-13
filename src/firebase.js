@@ -1,24 +1,22 @@
-// samplenative/app/utils/firebaseConfig.ts
-import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
+// Import Firebase SDKs
+import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { setPersistence, browserSessionPersistence } from "firebase/auth";
-
-
+import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBftFr5Av5aMk59lhE01O4GH34LZ67pRbA",
-  authDomain: "crm-yaanar-859e1.firebaseapp.com",
-  projectId: "crm-yaanar-859e1",
-  storageBucket: "crm-yaanar-859e1.appspot.com",
-  messagingSenderId: "727761808386",
-  appId: "1:727761808386:web:3702c7ded538addd628b1b",
+  apiKey: "AIzaSyCzAVjqvzqFyJv0GrK1OZN3W1EXOHEsglA",
+  authDomain: "pspmahle.firebaseapp.com",
+  projectId: "pspmahle",
+  storageBucket: "pspmahle.firebasestorage.app",
+  messagingSenderId: "404749824069",
+  appId: "1:404749824069:web:8a6d5f52f3070d6b99732c"
 };
 
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const auth = getAuth(app); 
-setPersistence(auth, browserSessionPersistence);
-const db = getFirestore(app);
-export { db };
-export { auth };
-    
+
+
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+export const storage = getStorage(app);
