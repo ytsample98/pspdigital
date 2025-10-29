@@ -4,8 +4,7 @@ import Navbar from './shared/NavBar';
 import Sidebar from './shared/Sidebar'
 import AppRoutes from './AppRoutes';
 import './App.scss';
-import { auth } from '../firebase'
-import { onAuthStateChanged, signOut } from 'firebase/auth';
+// We no longer use Firebase auth here; rely on server login that stores `dcmsUser` in localStorage
 
 const Login = lazy(() => import('./user-pages/Login'));
 const Register = lazy(() => import('./user-pages/Register'));
@@ -14,26 +13,29 @@ class App extends Component {
   state = { user: null, loading: true };
 
   componentDidMount() {
-   onAuthStateChanged(auth, (user) => {
-  if (user) {
-    // ✅ Only redirect to dashboard if you're at login/register
-    if (window.location.pathname.startsWith("/user-pages")) {
-      window.location.href = "/dashboard";
+    // Read logged-in user from localStorage (set by Login.js after successful server login)
+    try {
+      const raw = localStorage.getItem('dcmsUser');
+      const user = raw ? JSON.parse(raw) : null;
+      // If not on auth pages and no user → force login
+      if (!user && !window.location.pathname.startsWith('/user-pages')) {
+        window.location.href = '/user-pages/login';
     }
-  } else {
-    // ✅ Force login if not authenticated
-    if (!window.location.pathname.startsWith("/user-pages")) {
-      window.location.href = "/user-pages/login";
-    }
+      // If user exists and currently on auth pages → go to dashboard
+      if (user && window.location.pathname.startsWith('/user-pages')) {
+        window.location.href = '/dashboard';
   }
   this.setState({ user, loading: false });
-});
+    } catch (e) {
+      this.setState({ user: null, loading: false });
+    }
 
   }
   handleLogout = async () => {
-  await signOut(auth);
-  localStorage.clear(); // clear cached businessGroup etc.
-  window.location.href = "/user-pages/login";
+    // clear stored user and other cached items; then redirect to login
+    localStorage.removeItem('dcmsUser');
+    localStorage.removeItem('businessGroup');
+    window.location.href = '/user-pages/login';
 }
 
   render() {

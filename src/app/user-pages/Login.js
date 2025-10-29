@@ -1,7 +1,6 @@
 import React, { Component } from 'react';
 import { Form } from 'react-bootstrap';
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from '../../firebase';
+import axios from 'axios';
 import { Link } from 'react-router-dom';
 
 class Login extends Component {
@@ -10,10 +9,13 @@ class Login extends Component {
   handleSubmit = async (e) => {
     e.preventDefault();
     try {
-        await signInWithEmailAndPassword(auth, this.state.email, this.state.password);
-        window.location.href = "/dashboard";
+      const res = await axios.post('/api/login', { usermail: this.state.email, password: this.state.password });
+      // store minimal user in localStorage
+      localStorage.setItem('dcmsUser', JSON.stringify(res.data));
+      window.location.href = '/dashboard';
     } catch (err) {
-      this.setState({ error: err.message });
+      const msg = err && err.response && err.response.data && err.response.data.error ? err.response.data.error : (err.message || 'Login failed');
+      this.setState({ error: msg });
     }
   };
 
@@ -57,10 +59,6 @@ class Login extends Component {
                   </button>
                 </div>
 
-                <div className="text-center mt-4 font-weight-light">
-                  Don't have an account?{" "}
-                  <Link to="/user-pages/register" className="text-primary">Create</Link>
-                </div>
               </Form>
             </div>
           </div>

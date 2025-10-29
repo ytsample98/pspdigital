@@ -1,26 +1,42 @@
 import React, { Component } from 'react';
 import { Dropdown } from 'react-bootstrap';
-import { auth } from '../../firebase';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
 
 class Navbar extends Component {
   state = { user: null };
-
   componentDidMount() {
-    // Listen for user
-    this.unsubscribe = onAuthStateChanged(auth, (user) => {
+    // Read authenticated user from localStorage (set by Login.js)
+    try {
+      const json = localStorage.getItem('dcmsUser');
+      const user = json ? JSON.parse(json) : null;
       this.setState({ user });
-    });
+    } catch (e) {
+      this.setState({ user: null });
+    }
+
+    // Update when other tabs change auth
+    this._onStorage = (e) => {
+      if (e.key === 'dcmsUser') {
+        try {
+          const user = e.newValue ? JSON.parse(e.newValue) : null;
+          this.setState({ user });
+        } catch (err) {
+          this.setState({ user: null });
+        }
+      }
+    };
+    window.addEventListener('storage', this._onStorage);
   }
 
   componentWillUnmount() {
-    if (this.unsubscribe) this.unsubscribe();
+    if (this._onStorage) window.removeEventListener('storage', this._onStorage);
   }
 
   handleLogout = async () => {
-    await signOut(auth);
-    localStorage.clear(); // clear cached data like businessGroup
-    window.location.href = "/user-pages/login"; // force back to login
+    // Clear only app-related keys so we don't remove unrelated storage
+    localStorage.removeItem('dcmsUser');
+    // keep businessGroup if you want; if not, uncomment next line
+    // localStorage.removeItem('businessGroup');
+    window.location.href = '/user-pages/login';
   };
 
   toggleOffcanvas() {
@@ -32,8 +48,10 @@ class Navbar extends Component {
 
   render() {
     const { user } = this.state;
-    const userName = user?.displayName || user?.email || "User";
-    const initial = userName.charAt(0).toUpperCase();
+    const userName =
+      (user && (user.username || user.name || user.displayName || user.usermail || user.email)) ||
+      'User';
+    const initial = userName ? userName.charAt(0).toUpperCase() : 'U';
 
     return (
       <nav className="navbar col-lg-12 col-12 p-lg-0 fixed-top d-flex flex-row">
@@ -58,16 +76,18 @@ class Navbar extends Component {
             <i className="mdi mdi-menu"></i>
           </button>
 
+          
+<div className="d-none d-md-block" style={{ marginLeft: 16 }}>
+      <img
+        src={require("../../assets/images/Mahle.jpg")}
+        alt="Custom"
+        style={{ maxHeight: 35 }}
+      />
+    </div>
+
+
           {/* Search */}
-          <form className="ml-auto search-form d-none d-md-block" action="#">
-            <div className="form-group">
-              <input
-                type="search"
-                className="form-control"
-                placeholder="Search Here"
-              />
-            </div>
-          </form>
+          
 
           {/* Right section */}
           <ul className="navbar-nav navbar-nav-right">
@@ -77,12 +97,12 @@ class Navbar extends Component {
               <span style={{ fontWeight: 600, fontSize: 18, color: "#222" }}>
                 {localStorage.getItem("businessGroup")
                   ? JSON.parse(localStorage.getItem("businessGroup")).bgName
-                  : "Company Name"}
+                  : ""}
               </span>
             </li>
 
-            {/* User Profile Dropdown */}
-            {user && (
+            {/* User Profile Dropdown or Sign In link */}
+            {user ? (
               <Dropdown align="end" className="nav-item nav-profile border-0">
                 <Dropdown.Toggle
                   variant="light"
@@ -94,25 +114,32 @@ class Navbar extends Component {
                     style={{
                       width: 40,
                       height: 40,
-                      borderRadius: "50%",
-                      backgroundColor: "#007bff",
-                      color: "#fff",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontWeight: "bold",
+                      borderRadius: '50%',
+                      backgroundColor: '#007bff',
+                      color: '#fff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 'bold',
                     }}
                   >
                     {initial}
                   </div>
+                  <div style={{ marginLeft: 8, fontWeight: 600, color: '#222' }}>
+                    {userName}
+                  </div>
                 </Dropdown.Toggle>
 
                 <Dropdown.Menu>
-                  <Dropdown.Item onClick={this.handleLogout}>
-                    Sign Out
-                  </Dropdown.Item>
+                  <Dropdown.Item onClick={this.handleLogout}>Sign Out</Dropdown.Item>
                 </Dropdown.Menu>
               </Dropdown>
+            ) : (
+              <li className="nav-item nav-profile border-0 d-flex align-items-center">
+                <a href="/user-pages/login" className="btn btn-outline-primary btn-sm">
+                  Sign In
+                </a>
+              </li>
             )}
           </ul>
 

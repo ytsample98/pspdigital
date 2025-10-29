@@ -13,7 +13,11 @@ class PSCPage extends Component {
     overlaySearch: '',
     overlayType: '',
     editingId: null,
-    activeTab: 'psc',
+    activeTab: 'corrective',
+    // master lists
+    departments: [],
+    valuestreams: [],
+    lines: [],
     formData: this.getEmptyForm()
   };
 
@@ -23,7 +27,7 @@ class PSCPage extends Component {
       problemNumber: '',
       initiatorName: '',
       date: today,
-      shift: 'A',
+      shift: '',
       valueStreamLine: 'VL 1',
       ticketStage: 'plan',
       shortDescription: '',
@@ -32,7 +36,7 @@ class PSCPage extends Component {
       qtyAffected: '',
       partAffected: '',
       supplier: '',
-      status: 'open',
+      status: 'Open',
 
       // effectiveness section
       effectivenessChecked: '',
@@ -43,15 +47,18 @@ class PSCPage extends Component {
       escalationLevel4: false,
 
       // corrective actions - array of rows
-      correctiveActions: [],
+        // single corrective action (only one row allowed)
+        correctiveAction: { initialContainmentAction: '', assignToDept: '', targetDate: '', type: '', remarks: '', action: 'accept' },
 
-      // root cause
+  // root cause
       symptom: '',
       problem_method: '',
       problem_material: '',
       problem_environment: '',
       problem_man: '',
       problem_machine: '',
+  // single root-level corrective action row
+  rootAction: { initialContainmentAction: '', assignToDept: '', targetDate: '', type: '' },
       actualCause: '',
       flags: {
         safetyIssue: false,
@@ -67,7 +74,24 @@ class PSCPage extends Component {
 
   componentDidMount() {
     this.fetchPSCs();
+    this.fetchMasters();
   }
+
+  fetchMasters = async () => {
+    try {
+      const depSnap = await getDocs(collection(db, 'department'));
+      const vlSnap = await getDocs(collection(db, 'valuestream'));
+      const lineSnap = await getDocs(collection(db, 'line'));
+      const departments = depSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const valuestreams = vlSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const lines = lineSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const shiftSnap = await getDocs(collection(db, 'shiftmaster'));
+      const shifts = shiftSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      this.setState({ departments, valuestreams, lines,shifts });
+    } catch (err) {
+      console.error('fetchMasters error', err);
+    }
+  };
 
   fetchPSCs = async () => {
     const snap = await getDocs(collection(db, 'psc'));
@@ -81,12 +105,43 @@ class PSCPage extends Component {
 
   toggleForm = (edit = null) => {
     if (edit) {
-      this.setState({ showForm: true, editingId: edit.id, activeTab: 'psc', formData: { ...edit }, showPreview: false });
+      this.setState({ showForm: true, editingId: edit.id, activeTab: 'corrective', formData: { ...edit }, showPreview: false });
     } else {
-      // generate a problem number
-      const num = `PSC-${101 + this.state.pscs.length}`;
-      this.setState({ showForm: true, editingId: null, activeTab: 'psc', showPreview: false, formData: { ...this.getEmptyForm(), problemNumber: num } });
+  const num = `PSC-${101 + this.state.pscs.length}`;
+  
+  // Determine shift automatically
+  const now = new Date();
+  const currentTime = now.getHours() * 60 + now.getMinutes();
+  let currentShift = '';
+
+  if (this.state.shifts && this.state.shifts.length > 0) {
+    this.state.shifts.forEach(shift => {
+      const [sH, sM] = shift.startTime.split(':').map(Number);
+      const [eH, eM] = shift.endTime.split(':').map(Number);
+      const start = sH * 60 + sM;
+      const end = eH * 60 + eM;
+
+      // Handle overnight shifts (e.g., 22:00–06:00)
+      if ((start <= currentTime && currentTime <= end) ||
+          (end < start && (currentTime >= start || currentTime <= end))) {
+        currentShift = shift.shiftName;
+      }
+    });
+  }
+
+  this.setState({
+    showForm: true,
+    editingId: null,
+    activeTab: 'corrective',
+    showPreview: false,
+    formData: {
+      ...this.getEmptyForm(),
+      problemNumber: num,
+      shift: currentShift ,
     }
+  });
+}
+
   };
 
   handleChange = (field, value) => {
@@ -117,38 +172,39 @@ class PSCPage extends Component {
     });
   };
 
-  // corrective actions helpers
-  addCorrectiveRow = () => {
-    this.setState(prev => ({ formData: { ...prev.formData, correctiveActions: [...(prev.formData.correctiveActions || []), { initialContainmentAction: '', assignTo: 'tl', targetDate: '', type: '' }] } }));
-  };
-
-  updateCorrectiveRow = (idx, field, value) => {
-    this.setState(prev => {
-      const rows = [...(prev.formData.correctiveActions || [])];
-      rows[idx] = { ...rows[idx], [field]: value };
-      // compute type based on targetDate compared to form date
-      if (field === 'targetDate') {
-        const formDate = new Date(prev.formData.date);
-        const target = new Date(value);
-        const diff = Math.ceil((target - formDate) / (1000 * 60 * 60 * 24));
-        rows[idx].type = diff > 7 ? 'Long Corrective Action' : 'Short Corrective Action';
-      }
-      return { formData: { ...prev.formData, correctiveActions: rows } };
-    });
-  };
-
-  removeCorrectiveRow = (idx) => {
-    this.setState(prev => {
-      const rows = [...(prev.formData.correctiveActions || [])];
-      rows.splice(idx, 1);
-      return { formData: { ...prev.formData, correctiveActions: rows } };
-    });
-  };
+updateCorrectiveAction = (field, value) => {
+  this.setState(prev => {
+    const formData = { ...prev.formData };
+    if (field === 'targetDate') {
+      // compute type based on date difference
+      const formDate = new Date(formData.date);
+      const target = new Date(value);
+      const diff = Math.ceil((target - formDate) / (1000 * 60 * 60 * 24));
+      formData.correctiveAction = {
+        ...formData.correctiveAction,
+        targetDate: value,
+        type: diff > 7 ? 'Long Corrective Action' : 'Short Corrective Action'
+      };
+    } else {
+      formData.correctiveAction = {
+        ...formData.correctiveAction,
+        [field]: value
+      };
+    }
+    return { formData };
+  });
+};
 
   handleSubmit = async (e) => {
     e.preventDefault();
     const { editingId, formData } = this.state;
     if (!formData.problemNumber || !formData.initiatorName) return alert('Problem Number and Initiator Name required');
+    // Validate root cause mandatory fields (method, material, machine) - requirement: three mandatory
+    if (!(formData.problem_method && formData.problem_material && formData.problem_machine)) {
+      // only enforce if root tab active or any root fields filled
+      const anyRoot = formData.problem_method || formData.problem_material || formData.problem_environment || formData.problem_man || formData.problem_machine;
+      if (anyRoot) return alert('Please fill Method, Material and Machine fields in Root Cause (three mandatory)');
+    }
     if (editingId) {
       await setDoc(doc(db, 'psc', editingId), formData);
     } else {
@@ -186,23 +242,31 @@ class PSCPage extends Component {
                 <input className="form-control form-control-sm" type="date" value={formData.date} onChange={e => this.handleChange('date', e.target.value)} />
               </div>
               <div className="form-group col-md-1">
-                <label>Shift</label>
-                <select className="form-control form-control-sm" value={formData.shift} onChange={e => this.handleChange('shift', e.target.value)}>
-                  {['A', 'B', 'C'].map(s => <option key={s}>{s}</option>)}
-                </select>
-              </div>
-              <div className="form-group col-md-2">
-                <label>Value Stream Line</label>
-                <select className="form-control form-control-sm" value={formData.valueStreamLine} onChange={e => this.handleChange('valueStreamLine', e.target.value)}>
-                  {['VL 1', 'VL 2', 'VL 3'].map(v => <option key={v}>{v}</option>)}
-                </select>
-              </div>
-              <div className="form-group col-md-2">
-                <label>Ticket Stage</label>
-                <select className="form-control form-control-sm" value={formData.ticketStage} onChange={e => this.handleChange('ticketStage', e.target.value)}>
-                  {['plan', 'do', 'check', 'act'].map(t => <option key={t}>{t}</option>)}
-                </select>
-              </div>
+  <label>Shift</label>
+  <input
+    className="form-control form-control-sm"
+    value={formData.shift}
+    readOnly
+  />
+</div>
+
+  <div className="form-group col-md-2">
+    <label>Value Stream</label>
+    <select className="form-control form-control-sm" value={formData.valueStreamLine} onChange={e => this.handleChange('valueStreamLine', e.target.value)}>
+      <option value="">Select VL</option>
+      {this.state.valuestreams.map(v => <option key={v.id} value={v.vlCode || v.vlName}>{v.vlName || v.vlCode}</option>)}
+    </select>
+  </div>
+  <div className="form-group col-md-2">
+    <label>Line</label>
+    <select className="form-control form-control-sm" value={formData.lineCode} onChange={e => this.handleChange('lineCode', e.target.value)}>
+      <option value="">Select Line</option>
+      {this.state.lines.filter(l => !formData.valueStreamLine || l.vlCode === formData.valueStreamLine)
+        .map(l => <option key={l.id} value={l.lineCode || l.line_name}>{l.line_name || l.lineCode}</option>)}
+    </select>
+  </div>
+
+              
             </div>
 
             <div className="form-row">
@@ -210,9 +274,15 @@ class PSCPage extends Component {
                 <label>Short Description</label>
                 <input className="form-control form-control-sm" value={formData.shortDescription} onChange={e => this.handleChange('shortDescription', e.target.value)} />
               </div>
-              <div className="form-group col-md-6">
+              <div className="form-group col-md-3">
                 <label>Qty Affected</label>
                 <input className="form-control form-control-sm" value={formData.qtyAffected} onChange={e => this.handleChange('qtyAffected', e.target.value)} />
+              </div>
+              <div className="form-group col-md-2">
+                <label>Ticket Stage</label>
+                <select className="form-control form-control-sm" value={formData.ticketStage} onChange={e => this.handleChange('ticketStage', e.target.value)}>
+                  {['Plan', 'Do', 'Check', 'Act'].map(t => <option key={t}>{t}</option>)}
+                </select>
               </div>
             </div>
 
@@ -236,9 +306,9 @@ class PSCPage extends Component {
 
             {/* Tabs: PSC / Corrective / Root Cause */}
             <ul className="nav nav-tabs mt-3" role="tablist">
-              <li className="nav-item"><button type="button" className={`nav-link ${activeTab === 'psc' ? 'active' : ''}`} onClick={() => this.setState({ activeTab: 'psc' })}>PSC</button></li>
               <li className="nav-item"><button type="button" className={`nav-link ${activeTab === 'corrective' ? 'active' : ''}`} onClick={() => this.setState({ activeTab: 'corrective' })}>Corrective Actions</button></li>
               <li className="nav-item"><button type="button" className={`nav-link ${activeTab === 'root' ? 'active' : ''}`} onClick={() => this.setState({ activeTab: 'root' })}>Root Cause</button></li>
+              <li className="nav-item"><button type="button" className={`nav-link ${activeTab === 'psc' ? 'active' : ''}`} onClick={() => this.setState({ activeTab: 'psc' })}>Effectiveness Check</button></li>
             </ul>
 
             {activeTab === 'psc' && (
@@ -248,74 +318,226 @@ class PSCPage extends Component {
                   <div className="form-group col-md-3"><label>Effectiveness Checked</label><input className="form-control form-control-sm" value={formData.effectivenessChecked} onChange={e => this.handleChange('effectivenessChecked', e.target.value)} /></div>
                   <div className="form-group col-md-3"><label>Date</label><input type="date" className="form-control form-control-sm" value={formData.effectivenessDate} onChange={e => this.handleChange('effectivenessDate', e.target.value)} /></div>
                   <div className="form-group col-md-2"><label>Shift</label><select className="form-control form-control-sm" value={formData.effectivenessShift} onChange={e => this.handleChange('effectivenessShift', e.target.value)}>{['A','B','C'].map(s=> <option key={s}>{s}</option>)}</select></div>
-                  <div className="form-group col-md-4 d-flex align-items-center">
-                    <div className="form-check mr-3"><input className="form-check-input" type="checkbox" checked={formData.escalationLevel2} onChange={() => this.handleCheckbox('escalationLevel2')} id="esc2" /><label className="form-check-label" htmlFor="esc2">Escalation Level 2</label></div>
-                    <div className="form-check mr-3"><input className="form-check-input" type="checkbox" checked={formData.escalationLevel3} onChange={() => this.handleCheckbox('escalationLevel3')} id="esc3" /><label className="form-check-label" htmlFor="esc3">Escalation Level 3</label></div>
-                    <div className="form-check"><input className="form-check-input" type="checkbox" checked={formData.escalationLevel4} onChange={() => this.handleCheckbox('escalationLevel4')} id="esc4" /><label className="form-check-label" htmlFor="esc4">Escalation Level 4</label></div>
-                  </div>
+                  
                 </div>
               </div>
             )}
 
             {activeTab === 'corrective' && (
-              <div className="mt-3">
-                <h5>Corrective Actions</h5>
-                <div className="mb-2">
-                  <button type="button" className="btn btn-sm btn-primary" onClick={this.addCorrectiveRow}>+ Add Action</button>
-                </div>
-                <table className="table table-bordered table-sm">
-                  <thead>
-                    <tr>
-                      <th>#</th>
-                      <th>Initial Containment Action</th>
-                      <th>Assign To</th>
-                      <th>Target Date</th>
-                      <th>Type</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(formData.correctiveActions || []).map((r, i) => (
-                      <tr key={i}>
-                        <td>{i + 1}</td>
-                        <td><textarea className="form-control form-control-sm" value={r.initialContainmentAction} onChange={e => this.updateCorrectiveRow(i, 'initialContainmentAction', e.target.value)} /></td>
-                        <td>
-                          <select className="form-control form-control-sm" value={r.assignTo} onChange={e => this.updateCorrectiveRow(i, 'assignTo', e.target.value)}>
-                            {['tl', 'vsl', 'plant head'].map(a => <option key={a}>{a}</option>)}
-                          </select>
-                        </td>
-                        <td><input type="date" className="form-control form-control-sm" value={r.targetDate || ''} onChange={e => this.updateCorrectiveRow(i, 'targetDate', e.target.value)} /></td>
-                        <td>{r.type || ''}</td>
-                        <td><button type="button" className="btn btn-sm btn-danger" onClick={() => this.removeCorrectiveRow(i)}>Delete</button></td>
-                      </tr>
-                    ))}
-                    {(!formData.correctiveActions || formData.correctiveActions.length === 0) && <tr><td colSpan={6} className="text-center">No corrective actions</td></tr>}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {activeTab === 'root' && (
-              <div className="mt-3">
-                <h5>Root Cause Analysis</h5>
-                <div className="form-row">
-                  <div className="form-group col-md-12"><label>Symptom</label><input className="form-control form-control-sm" value={formData.symptom} onChange={e => this.handleChange('symptom', e.target.value)} /></div>
-                </div>
-                <div className="form-row">
-                  <div className="form-group col-md-6"><label>Problem in Method</label><textarea className="form-control form-control-sm" rows={3} value={formData.problem_method} onChange={e => this.handleChange('problem_method', e.target.value)} /></div>
-                  <div className="form-group col-md-6"><label>Problem in Material</label><textarea className="form-control form-control-sm" rows={3} value={formData.problem_material} onChange={e => this.handleChange('problem_material', e.target.value)} /></div>
-                </div>
-                <div className="form-row">
-                  <div className="form-group col-md-6"><label>Problem in Environment</label><textarea className="form-control form-control-sm" rows={3} value={formData.problem_environment} onChange={e => this.handleChange('problem_environment', e.target.value)} /></div>
-                  <div className="form-group col-md-6"><label>Problem in Man</label><textarea className="form-control form-control-sm" rows={3} value={formData.problem_man} onChange={e => this.handleChange('problem_man', e.target.value)} /></div>
-                </div>
-                <div className="form-row">
-                  <div className="form-group col-md-12"><label>Problem in Machine</label><textarea className="form-control form-control-sm" rows={3} value={formData.problem_machine} onChange={e => this.handleChange('problem_machine', e.target.value)} /></div>
-                </div>
-                <div className="form-row">
-                  <div className="form-group col-md-12"><label>Actual Cause of Problem</label><textarea className="form-control form-control-sm" rows={4} value={formData.actualCause} onChange={e => this.handleChange('actualCause', e.target.value)} /></div>
-                </div>
-                <div className="form-row">
+  <div className="mt-3">
+    <div className="form-row">
+      <div className="form-group col-md-4">
+        <label>Initial Containment Action</label>
+        <textarea 
+          className="form-control form-control-sm" 
+          rows={3} 
+          value={formData.correctiveAction.initialContainmentAction} 
+          onChange={e => this.updateCorrectiveAction('initialContainmentAction', e.target.value)} 
+        />
+      </div>
+      <div className="form-group col-md-3">
+        <label>Assign To (Dept)</label>
+        <select 
+          className="form-control form-control-sm" 
+          value={formData.correctiveAction.assignToDept} 
+          onChange={e => this.updateCorrectiveAction('assignToDept', e.target.value)}
+        >
+          <option value="">Select Dept</option>
+          {this.state.departments.map(d => <option key={d.id} value={d.deptCode || d.deptName}>{d.deptName || d.deptCode}</option>)}
+        </select>
+      </div>
+      <div className="form-group col-md-3">
+        <label>Target Date</label>
+        <input 
+          type="date" 
+          className="form-control form-control-sm" 
+          value={formData.correctiveAction.targetDate} 
+          onChange={e => this.updateCorrectiveAction('targetDate', e.target.value)} 
+        />
+      </div>
+      <div className="form-group col-md-2">
+        <label>Type</label>
+        <input className="form-control form-control-sm" value={formData.correctiveAction.type} readOnly />
+      </div>
+    </div>
+      
+    </div>
+)}
+{activeTab === 'root' && (
+  <div className="mt-3">
+    <h5>Root Cause Analysis</h5>
+    {/* 5-Why fields in two rows */}
+    <div className="form-row">
+      <div className="form-group col-md-4">
+        <label>Why? (1) <span class="required-asterisk">*</span></label>
+        <textarea className="form-control form-control-sm" rows={2} value={formData.problem_method} onChange={e => this.handleChange('problem_method', e.target.value)} />
+      </div>
+      <div className="form-group col-md-4">
+        <label>Why? (2) <span class="required-asterisk">*</span></label>
+        <textarea className="form-control form-control-sm" rows={2} value={formData.problem_material} onChange={e => this.handleChange('problem_material', e.target.value)} />
+      </div>
+      <div className="form-group col-md-4">
+        <label>Why? (3) <span class="required-asterisk">*</span></label>
+        <textarea className="form-control form-control-sm" rows={2} value={formData.problem_environment} onChange={e => this.handleChange('problem_environment', e.target.value)} />
+      </div>
+    </div>
+    <div className="form-row">
+      <div className="form-group col-md-6">
+        <label>Why? (4)</label>
+        <textarea className="form-control form-control-sm" rows={2} value={formData.problem_man} onChange={e => this.handleChange('problem_man', e.target.value)} />
+      </div>
+      <div className="form-group col-md-6">
+        <label>Why? (5)</label>
+        <textarea className="form-control form-control-sm" rows={2} value={formData.problem_machine} onChange={e => this.handleChange('problem_machine', e.target.value)} />
+      </div>
+    </div>
+<div className="mt-4">
+  <h6>Action Taken</h6>
+  <button
+    type="button"
+    className="btn btn-sm btn-warning mb-2"
+    onClick={() => this.setState(prev => ({
+      rootReassignMode: !prev.rootReassignMode
+    }))}
+  >
+    {this.state.rootReassignMode ? 'Cancel Reassign' : 'Reassign'}
+  </button>
+  <table className="table table-bordered table-sm">
+    <thead>
+      <tr>
+        {this.state.rootReassignMode ? (
+          <>
+            <th>Remarks</th>
+            <th>Assign To</th>
+          </>
+        ) : (
+          <>
+            <th>Action</th>
+            <th>Target Date</th>
+            <th>Remarks</th>
+          </>
+        )}
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        {this.state.rootReassignMode ? (
+          <>
+            <td>
+              <input
+                className="form-control form-control-sm"
+                value={formData.rootAction.remarks || ''}
+                onChange={e => {
+                  const value = e.target.value;
+                  this.setState(prev => ({
+                    formData: {
+                      ...prev.formData,
+                      rootAction: {
+                        ...prev.formData.rootAction,
+                        remarks: value
+                      }
+                    }
+                  }));
+                }}
+              />
+            </td>
+            <td>
+              <select
+                className="form-control form-control-sm"
+                value={formData.rootAction.assignToDept || ''}
+                onChange={e => {
+                  const value = e.target.value;
+                  this.setState(prev => ({
+                    formData: {
+                      ...prev.formData,
+                      rootAction: {
+                        ...prev.formData.rootAction,
+                        assignToDept: value
+                      }
+                    }
+                  }));
+                }}
+              >
+                <option value="">Select Dept</option>
+                {this.state.departments.map(d => (
+                  <option key={d.id} value={d.deptCode || d.deptName}>
+                    {d.deptName || d.deptCode}
+                  </option>
+                ))}
+              </select>
+            </td>
+          </>
+        ) : (
+          <>
+            <td>
+              <textarea
+                className="form-control form-control-sm"
+                rows={2}
+                value={formData.rootAction.actionTaken || ''}
+                onChange={e => {
+                  const value = e.target.value;
+                  this.setState(prev => ({
+                    formData: {
+                      ...prev.formData,
+                      rootAction: {
+                        ...prev.formData.rootAction,
+                        actionTaken: value
+                      }
+                    }
+                  }));
+                }}
+              />
+            </td>
+            <td>
+              <input
+                type="date"
+                className="form-control form-control-sm"
+                value={formData.rootAction.targetDate || ''}
+                onChange={e => {
+                  const value = e.target.value;
+                  const formDate = new Date(this.state.formData.date);
+                  const target = new Date(value);
+                  const diff = Math.ceil(
+                    (target - formDate) / (1000 * 60 * 60 * 24)
+                  );
+                  this.setState(prev => ({
+                    formData: {
+                      ...prev.formData,
+                      rootAction: {
+                        ...prev.formData.rootAction,
+                        targetDate: value,
+                        type: diff > 7 ? 'Long Corrective Action' : 'Short Corrective Action'
+                      }
+                    }
+                  }));
+                }}
+              />
+            </td>
+            <td>
+              <input
+                className="form-control form-control-sm"
+                value={formData.rootAction.remarks || ''}
+                onChange={e => {
+                  const value = e.target.value;
+                  this.setState(prev => ({
+                    formData: {
+                      ...prev.formData,
+                      rootAction: {
+                        ...prev.formData.rootAction,
+                        remarks: value
+                      }
+                    }
+                  }));
+                }}
+              />
+            </td>
+          </>
+        )}
+      </tr>
+    </tbody>
+  </table>
+</div>
+     <div className="form-row">
                   <div className="form-group col-md-12 d-flex flex-wrap">
                     {[
                       ['flags.safetyIssue', 'Safety issue / Near Miss(es)'],
@@ -333,8 +555,8 @@ class PSCPage extends Component {
                     ))}
                   </div>
                 </div>
-              </div>
-            )}
+  </div>
+)}
 
             <div className="fixed-card-footer">
               <button type="submit" className="btn btn-success btn-sm">Save</button>
@@ -429,7 +651,7 @@ class PSCPage extends Component {
         </tbody></table>
 
         <ul className="nav nav-tabs mb-3">
-          {['showAll', 'psc', 'corrective', 'root'].map(key => (
+          {['showAll', 'corrective', 'root','psc'].map(key => (
             <li className="nav-item" key={key}>
               <button className={`nav-link ${this.state.previewTab === key ? 'active' : ''}`} onClick={() => this.setState({ previewTab: key })}>
                 {key === 'showAll' ? 'Show All' : (key.charAt(0).toUpperCase() + key.slice(1))}
@@ -464,7 +686,6 @@ class PSCPage extends Component {
                 <th>Stage</th>
                 <th>Short Description</th>
                 <th>Status</th>
-                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -478,10 +699,6 @@ class PSCPage extends Component {
                   <td>{c.ticketStage}</td>
                   <td>{c.shortDescription}</td>
                   <td>{c.status}</td>
-                  <td>
-                    <button className="btn btn-sm btn-outline-primary mr-2" onClick={() => this.toggleForm(c)}>Edit</button>
-                    <button className="btn btn-sm btn-outline-danger" onClick={() => this.handleDelete(c.id)}>Delete</button>
-                  </td>
                 </tr>
               ))}
               {this.state.pscs.length === 0 && <tr><td colSpan="9" className="text-center">No records found</td></tr>}

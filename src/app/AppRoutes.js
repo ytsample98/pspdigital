@@ -12,7 +12,11 @@ const pspform=lazy(()=> import('./psp/pspform'));
 const OrgPage=lazy(()=> import('./administrator/OrganizationPage'));
 const UserCreation=lazy(()=> import('./administrator/UserCreation'));
 const AdminMediaList=lazy(()=> import('./administrator/AdminPage'));
-
+const Masters=lazy(()=> import('./administrator/Masters'));
+const PSC=lazy(()=>import('./PSCList'));
+const CA= lazy(()=>import('./CorrectiveAction'));
+const RCA=lazy(()=>import('./RootCause'));
+const EffectCheck=lazy(()=>import('./EffectCheck'));
 
 
 class AppRoutes extends Component {
@@ -22,16 +26,17 @@ class AppRoutes extends Component {
         <Switch>
           {/* Auth pages */}
           <Route exact path="/user-pages/login" component={Login} />
-          <Route exact path="/user-pages/register" component={Register} />
           {/* Main App */}
           <Route exact path="/dashboard" component={Dashboard} />
           <Route path="/psp/pspform" component={pspform} />
-
-          
-         
+          <Route path='/PSCList' component={PSC}/>
+          <Route path='/CorrectiveAction' component={CA}/>
+          <Route path='/RootCause' component={RCA}/>
+          <Route path='/EffectCheck' component={EffectCheck}/>
           <Route path="/administrator" exact component={AdminMediaList} />
           <Route path="/administrator/OrganizationPage" component={OrganizationPage} />
           <Route path="/administrator/UserCreation" component={UserCreation} />
+          <Route path="/administrator/Masters" component={Masters} />
           {/* Default: go to Login first */}
           <Redirect to="/dashboard" />
         </Switch>

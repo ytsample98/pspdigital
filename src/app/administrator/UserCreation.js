@@ -1,14 +1,6 @@
 // src/app/administrator/UserCreation.js
 import React, { Component } from 'react';
-import { db } from '../../firebase';
-import {
-  collection,
-  getDocs,
-  addDoc,
-  setDoc,
-  doc,
-  deleteDoc,
-} from 'firebase/firestore';
+import axios from 'axios';
 import '../../assets/styles/components/_custom-table.scss';
 
 /*
@@ -31,34 +23,42 @@ class UserCreation extends Component {
     editingId: null,
     // form data: responsibilities & rights are simple text fields (CSV or description)
     formData: {
-      usercode: '', // auto assigned when creating new
+      empcode: '', 
       username: '',
       usermail: '',
-      userresp: '', // simple text field
+      userresp: '', // will store responsibility id
       userrights: '', // simple text field
       password: '',
+      confirmPassword: '',
       showPassword: false,
-      // optional dashboard checkboxes (still stored in the document)
-      dashboardPurchase: false,
-      dashboardInventory: false,
-      dashboardSales: false,
       lockUser: false,
+      user_type_id: ''
     },
     loading: false,
+    types: [],
+    responsibilities: []
   };
 
   componentDidMount() {
     this.fetchUsers();
+    this.fetchMasters();
+    this.fetchLookups();
   }
+
+  fetchLookups = async () => {
+    try {
+      const [dRes, pRes] = await Promise.all([axios.get('/api/department'), axios.get('/api/plant')]);
+      this.setState({ departments: dRes.data || [], plants: pRes.data || [] });
+    } catch (err) { console.error('fetchLookups', err); }
+  };
 
   // ---------- Firestore fetch ----------
   fetchUsers = async () => {
     this.setState({ loading: true });
     try {
-      const snap = await getDocs(collection(db, 'users'));
-      const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      // sort by usercode if available
-      data.sort((a, b) => (a.usercode > b.usercode ? 1 : -1));
+      const res = await axios.get('/api/users');
+      const data = res.data || [];
+      data.sort((a, b) => (a.emp_code > b.emp_code ? 1 : -1));
       this.setState({ users: data, loading: false });
     } catch (err) {
       console.error('fetchUsers error', err);
@@ -66,8 +66,15 @@ class UserCreation extends Component {
     }
   };
 
+  fetchMasters = async () => {
+    try {
+      const [tRes, rRes] = await Promise.all([axios.get('/api/user_type'), axios.get('/api/user_responsibility')]);
+      this.setState({ types: tRes.data || [], responsibilities: rRes.data || [] });
+    } catch (err) { console.error('fetchMasters', err); }
+  };
+
   // ---------- Helpers ----------
-  makeNewUserCode = () => {
+  makeNewempcode = () => {
     // simple auto code: U + timestamp (change to any sequence generator you prefer)
     return `U${Date.now().toString().slice(-7)}`;
   };
@@ -78,17 +85,16 @@ class UserCreation extends Component {
       showForm: true,
       editingId: null,
       formData: {
-        usercode: this.makeNewUserCode(),
+        empcode: this.makeNewempcode(),
         username: '',
         usermail: '',
         userresp: '',
         userrights: '',
         password: '',
+        confirmPassword: '',
         showPassword: false,
-        dashboardPurchase: false,
-        dashboardInventory: false,
-        dashboardSales: false,
         lockUser: false,
+        user_type_id: ''
       },
     });
   };
@@ -99,17 +105,16 @@ class UserCreation extends Component {
       showForm: true,
       editingId: user.id,
       formData: {
-        usercode: user.usercode || this.makeNewUserCode(),
+        empcode: user.emp_code || this.makeNewempcode(),
         username: user.username || '',
-        usermail: user.usermail || '',
-        userresp: user.userresp || '',
-        userrights: user.userrights || '',
-        password: user.password || '',
+        usermail: user.email || '',
+        userresp: user.user_resp_id || '',
+        userrights: user.user_rights || '',
+        password: '',
+        confirmPassword: '',
         showPassword: false,
-        dashboardPurchase: !!user.dashboardPurchase,
-        dashboardInventory: !!user.dashboardInventory,
-        dashboardSales: !!user.dashboardSales,
-        lockUser: !!user.lockUser,
+        lockUser: !!user.lock_user,
+        user_type_id: user.user_type_id || ''
       },
     });
   };
@@ -136,41 +141,43 @@ class UserCreation extends Component {
       return;
     }
 
-    const saveObj = {
-      usercode: formData.usercode,
+    if (!editingId && (!formData.password || formData.password !== formData.confirmPassword)) {
+      alert('Passwords do not match or empty');
+      return;
+    }
+
+    // map to backend column names
+    const payload = {
+      empcode: formData.empcode,
       username: formData.username,
       usermail: formData.usermail,
-      userresp: formData.userresp, // free text
-      userrights: formData.userrights, // free text
-      password: formData.password, // NOTE: in production DO NOT store plaintext passwords
-      dashboardPurchase: !!formData.dashboardPurchase,
-      dashboardInventory: !!formData.dashboardInventory,
-      dashboardSales: !!formData.dashboardSales,
-      lockUser: !!formData.lockUser,
-      updatedAt: new Date().toISOString(),
+      password: formData.password,
+      user_resp_id: formData.userresp,
+      dept_id: formData.dept_id || formData.deptId || null,
+      plant_id: formData.plant_id || formData.plantId || null,
+      lock_user: !!formData.lockUser,
+      user_type_id: formData.user_type_id
     };
 
     try {
       if (editingId) {
-        await setDoc(doc(db, 'users', editingId), saveObj, { merge: true });
+        await axios.put(`/api/users/${editingId}`, payload);
       } else {
-        // create
-        const ref = await addDoc(collection(db, 'users'), saveObj);
-        saveObj.id = ref.id;
+        await axios.post('/api/users', payload);
       }
       await this.fetchUsers();
       this.setState({ showForm: false, editingId: null });
     } catch (err) {
-      console.error('save user error', err);
+      console.error('save user error', err && err.response || err.message || err);
       alert('Error saving user. Check console for details.');
     }
   };
 
   handleDelete = async (user) => {
-    const ok = window.confirm(`Delete user ${user.username} (${user.usercode})?`);
+    const ok = window.confirm(`Delete user ${user.username} (${user.empcode})?`);
     if (!ok) return;
     try {
-      await deleteDoc(doc(db, 'users', user.id));
+      await axios.delete(`/api/users/${user.id}`);
       await this.fetchUsers();
     } catch (err) {
       console.error('delete user error', err);
@@ -199,7 +206,7 @@ class UserCreation extends Component {
             <div className="form-row">
               <div className="form-group col-md-2">
                 <label>User Code</label>
-                <input className="form-control form-control-sm" value={formData.usercode} readOnly />
+                <input className="form-control form-control-sm" value={formData.empcode} readOnly />
               </div>
 
               <div className="form-group col-md-4">
@@ -224,28 +231,6 @@ class UserCreation extends Component {
               </div>
             </div>
 
-            <div className="form-row">
-              <div className="form-group col-md-6">
-                <label>Responsibility</label>
-                <input
-                  className="form-control form-control-sm"
-                  placeholder="e.g. Sales Manager, Purchase Clerk or free text"
-                  value={formData.userresp}
-                  onChange={(e) => this.handleChange('userresp', e.target.value)}
-                />
-              </div>
-
-              <div className="form-group col-md-6">
-                <label>User Rights</label>
-                <input
-                  className="form-control form-control-sm"
-                  placeholder="free text or comma separated rights"
-                  value={formData.userrights}
-                  onChange={(e) => this.handleChange('userrights', e.target.value)}
-                />
-              </div>
-            </div>
-
             <div className="form-row align-items-end">
               <div className="form-group col-md-4">
                 <label>Password</label>
@@ -255,6 +240,8 @@ class UserCreation extends Component {
                   value={formData.password}
                   onChange={(e) => this.handleChange('password', e.target.value)}
                 />
+                <label style={{marginTop:8}}>Confirm Password</label>
+                <input type={formData.showPassword ? 'text' : 'password'} className="form-control form-control-sm" value={formData.confirmPassword} onChange={e=>this.handleChange('confirmPassword', e.target.value)} />
                 <div className="form-check mt-1">
                   <input
                     className="form-check-input"
@@ -268,58 +255,45 @@ class UserCreation extends Component {
                   </label>
                 </div>
               </div>
+              <div className="form-check mt-2">
+                  <label style={{display:'block'}}>Status</label>
+                  <div className="form-check form-switch">
+                    <input className="form-check-input" type="checkbox" role="switch" id="lockUser" checked={!formData.lockUser} onChange={(e) => this.handleChange('lockUser', !e.target.checked)} />
+                    <label className="form-check-label" htmlFor="lockUser">Active</label>
+                  </div>
+                </div>
+            </div>
 
-              <div className="form-group col-md-8">
-                <div className="mb-2">Dashboard</div>
-                <div className="form-check form-check-inline">
-                  <input
-                    className="form-check-input"
-                    id="dbPurchase"
-                    type="checkbox"
-                    checked={formData.dashboardPurchase}
-                    onChange={(e) => this.handleChange('dashboardPurchase', e.target.checked)}
-                  />
-                  <label className="form-check-label" htmlFor="dbPurchase">
-                    Purchase
-                  </label>
-                </div>
-                <div className="form-check form-check-inline">
-                  <input
-                    className="form-check-input"
-                    id="dbInventory"
-                    type="checkbox"
-                    checked={formData.dashboardInventory}
-                    onChange={(e) => this.handleChange('dashboardInventory', e.target.checked)}
-                  />
-                  <label className="form-check-label" htmlFor="dbInventory">
-                    Inventory
-                  </label>
-                </div>
-                <div className="form-check form-check-inline">
-                  <input
-                    className="form-check-input"
-                    id="dbSales"
-                    type="checkbox"
-                    checked={formData.dashboardSales}
-                    onChange={(e) => this.handleChange('dashboardSales', e.target.checked)}
-                  />
-                  <label className="form-check-label" htmlFor="dbSales">
-                    Sales
-                  </label>
-                </div>
+            <div className="form-row">
+              <div className="form-group col-md-4">
+                <label>User Type</label>
+                <select className="form-control form-control-sm" value={formData.user_type_id} onChange={e=>this.handleChange('user_type_id', e.target.value)}>
+                  <option value="">Select Type</option>
+                  {this.state.types.map(t => <option key={t.id} value={t.id}>{t.type_name}</option>)}
+                </select>
+              </div>
+              <div className="form-group col-md-4">
+                <label>Department</label>
+                <select className="form-control form-control-sm" value={formData.dept_id || ''} onChange={e=>this.handleChange('dept_id', e.target.value)}>
+                  <option value="">Select Dept</option>
+                  {(this.state.departments||[]).map(d => <option key={d.id} value={d.id}>{d.dept_name || d.deptName || d.dept_name}</option>)}
+                </select>
+              </div>
 
-                <div className="form-check mt-2">
-                  <input
-                    className="form-check-input"
-                    id="lockUser"
-                    type="checkbox"
-                    checked={formData.lockUser}
-                    onChange={(e) => this.handleChange('lockUser', e.target.checked)}
-                  />
-                  <label className="form-check-label" htmlFor="lockUser">
-                    Lock user
-                  </label>
-                </div>
+              <div className="form-group col-md-4">
+                <label>Plant</label>
+                <select className="form-control form-control-sm" value={formData.plant_id || ''} onChange={e=>this.handleChange('plant_id', e.target.value)}>
+                  <option value="">Select Plant</option>
+                  {(this.state.plants||[]).map(p => <option key={p.id} value={p.id}>{p.plant_name || p.plantName}</option>)}
+                </select>
+              </div>
+
+              <div className="form-group col-md-4">
+                <label>User Responsibility</label>
+                <select className="form-control form-control-sm" value={formData.userresp} onChange={e=>this.handleChange('userresp', e.target.value)}>
+                  <option value="">Select Responsibility</option>
+                  {this.state.responsibilities.map(r => <option key={r.id} value={r.id}>{r.resp_name}</option>)}
+                </select>
               </div>
             </div>
 
@@ -360,8 +334,7 @@ class UserCreation extends Component {
                   <th>User Name</th>
                   <th>E-Mail</th>
                   <th>Responsibility</th>
-                  <th>User Rights</th>
-                  <th>Dashboard</th>
+                  <th>User Type</th>
                   <th>Lock</th>
                   <th>Actions</th>
                 </tr>
@@ -377,21 +350,16 @@ class UserCreation extends Component {
                 {!loading &&
                   users.map((u) => (
                     <tr key={u.id}>
-                      <td>{u.usercode}</td>
+                      <td>{u.empcode || u.emp_code}</td>
                       <td>{u.username}</td>
-                      <td>{u.usermail}</td>
+                      <td>{u.usermail || u.email}</td>
                       <td style={{ maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {u.userresp}
+                        {u.resp_name}
                       </td>
                       <td style={{ maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {u.userrights}
+                        {u.user_type || u.type_name}
                       </td>
-                      <td>
-                        {u.dashboardPurchase ? 'P' : ''}
-                        {u.dashboardInventory ? ' I' : ''}
-                        {u.dashboardSales ? ' S' : ''}
-                      </td>
-                      <td>{u.lockUser ? 'Yes' : 'No'}</td>
+                      <td>{u.lock_user ? 'Inactive' : 'Active'}</td>
                       <td>
                         <button className="btn btn-sm btn-link p-0 mr-2" onClick={() => this.openEditForm(u)}>
                           Edit
