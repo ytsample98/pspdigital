@@ -193,10 +193,6 @@ const createMasterEndpoints = (name) => {
 };
 
 ['department','position','line','machine','shift','plant','valuestream','user_type','user_responsibility','escalation','notifications'].forEach(createMasterEndpoints);
-
-// --- PSC endpoints ---
-// helper to map DB row (snake_case) to frontend-friendly camelCase
-// Helper: join all PSC related data
 const mapFullPscRow = async (pscRow) => {
   if (!pscRow) return null;
   const id = pscRow.id;
@@ -205,23 +201,63 @@ const mapFullPscRow = async (pscRow) => {
   const correctiveRes = await pool.query(correctiveQ, [id]);
   const corrective = correctiveRes.rows[0] || null;
 
-  // Get root cause
+  // Get root cause (note new final_cause column)
   const rootCauseQ = `SELECT * FROM root_cause WHERE psccard_id = $1`;
   const rootCauseRes = await pool.query(rootCauseQ, [id]);
   const rootCause = rootCauseRes.rows[0] || null;
 
-  // Get countermeasures
+  // Get countermeasures (new column names: description, target_date, type, cm_status)
   let countermeasures = [];
   if (rootCause) {
-    const cmQ = `SELECT * FROM countermeasure WHERE root_cause_id = $1`;
+    const cmQ = `SELECT id, root_cause_id, assigned_to, assigned_remarks, description, target_date, type, created_by, cm_status, created_at, updated_at FROM countermeasure WHERE root_cause_id = $1 ORDER BY id ASC`;
     const cmRes = await pool.query(cmQ, [rootCause.id]);
-    countermeasures = cmRes.rows;
+    // Map row fields to frontend-friendly names
+    countermeasures = cmRes.rows.map(r => ({
+      id: r.id,
+      rootCauseId: r.root_cause_id,
+      assignedTo: r.assigned_to,
+      assignedRemarks: r.assigned_remarks,
+      // new canonical name is `description` (keep `countermeasure` as alias for compatibility)
+      description: r.description,
+      countermeasure: r.description,
+      targetDate: r.target_date ? r.target_date.toISOString().split('T')[0] : null,
+      type: r.type,
+      createdBy: r.created_by,
+      cm_status: r.cm_status,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at
+    }));
   }
 
-  // Get effectiveness check
-  const effQ = `SELECT * FROM effectiveness_check WHERE psc_id = $1`;
-  const effRes = await pool.query(effQ, [id]);
-  const effectivenessCheck = effRes.rows[0] || null;
+  // Get effectiveness check (compatibly handle old 'psc_id' column OR new countermeasure-linked records)
+  let effectivenessCheck = null;
+  try {
+    // First attempt: legacy schema with psc_id
+    const effQ = `SELECT * FROM effectiveness_check WHERE psc_id = $1 LIMIT 1`;
+    const effRes = await pool.query(effQ, [id]);
+    effectivenessCheck = effRes.rows[0] || null;
+  } catch (err) {
+    // If that failed (e.g., column psc_id doesn't exist), attempt to find effectiveness checks
+    // linked to countermeasures that belong to this PSC's root_cause.
+    try {
+      // Only attempt if there is a rootCause; otherwise find via joins.
+      const effJoinQ = `
+        SELECT ec.*
+        FROM effectiveness_check ec
+        JOIN countermeasure c ON ec.countermeasure_id = c.id
+        JOIN root_cause r ON c.root_cause_id = r.id
+        WHERE r.psccard_id = $1
+        ORDER BY ec.checked_at DESC NULLS LAST, ec.id DESC
+        LIMIT 1
+      `;
+      const effRes2 = await pool.query(effJoinQ, [id]);
+      effectivenessCheck = effRes2.rows[0] || null;
+    } catch (err2) {
+      // As a last resort, set null and continue — we don't want the entire PSC list to fail
+      console.warn('Could not fetch effectiveness_check (both legacy and new schema attempted):', err2 && err2.message || err2);
+      effectivenessCheck = null;
+    }
+  }
 
   // Compose output
   return {
@@ -236,10 +272,15 @@ const mapFullPscRow = async (pscRow) => {
     partAffected: pscRow.part_affected,
     ticketStage: pscRow.ticket_stage || pscRow.ticketStage,
     correctiveAction: corrective,
-    rootCause: rootCause ? { ...rootCause, countermeasures } : null,
+    root_cause: rootCause ? { 
+      ...rootCause,
+      final_cause: rootCause.final_cause,
+      countermeasures // attach array of CMs
+    } : null,
     effectivenessCheck,
   };
 };
+
 app.get('/api/psc', async (req, res) => {
   try {
     const { status } = req.query;
@@ -379,7 +420,7 @@ app.put('/api/psc/:id/corrective', async (req, res) => {
 // root cause update
 app.put('/api/psc/:id/rootcause', async (req, res) => {
   try {
-    const { why1, why2, why3, why4, why5, filled_by, countermeasures } = req.body;
+    const { why1, why2, why3, why4, why5, final_cause, filled_by, countermeasures } = req.body;
     const client = await pool.connect();
 
     try {
@@ -388,14 +429,15 @@ app.put('/api/psc/:id/rootcause', async (req, res) => {
       // Upsert root_cause row
       const rcResult = await client.query(
         `INSERT INTO root_cause 
-        (psccard_id, why1, why2, why3, why4, why5, filled_by)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        (psccard_id, why1, why2, why3, why4, why5, final_cause, filled_by)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         ON CONFLICT (psccard_id) 
         DO UPDATE SET 
           why1 = $2, why2 = $3, why3 = $4, why4 = $5, why5 = $6,
-          filled_by = $7, updated_at = CURRENT_TIMESTAMP
+          final_cause = $7,
+          filled_by = $8, updated_at = CURRENT_TIMESTAMP
         RETURNING *`,
-        [req.params.id, why1, why2, why3, why4, why5, filled_by]
+        [req.params.id, why1, why2, why3, why4, why5, final_cause, filled_by]
       );
 
       const rootCauseRow = rcResult.rows[0];
@@ -408,38 +450,29 @@ app.put('/api/psc/:id/rootcause', async (req, res) => {
         // insert new ones
         for (let i = 0; i < countermeasures.length; i++) {
           const cm = countermeasures[i] || {};
+          // Map incoming payloads (frontend may send description or countermeasure for backwards compat)
           const vals = [
             rootCauseRow.id,
-            cm.countermeasure || null,
-            cm.targetDate || null,
+            cm.assignTo || cm.assignedTo || cm.assigned_to || null,
+            cm.assignedRemarks || cm.assigned_remarks || null,
+            cm.description || cm.countermeasure || null,
+            cm.targetDate || cm.target_date || null,
             cm.type || null,
-            cm.actionRemarks || null,
-            cm.assignTo || null,
-            cm.comments || null,
-            cm.status || 'Pending',
-            cm.acceptedBy || cm.accepted_by || null,
-            cm.acceptedAt || cm.accepted_at || null,
-            cm.rejection_reason || null,
-            cm.rejectedBy || cm.rejected_by || null,
-            cm.rejectedAt || cm.rejected_at || null,
+            cm.created_by || cm.createdBy || null,
+            cm.cm_status || cm.status || 'Pending',
             new Date(),
             new Date()
           ];
           const placeholders = vals.map((_, idx) => `$${idx + 1}`).join(',');
           const q = `INSERT INTO countermeasure (
             root_cause_id,
-            countermeasure,
-            counter_target_date,
-            counter_type,
-            counter_action_remarks,
-            counter_assign_to,
-            counter_comments,
-            status,
-            accepted_by,
-            accepted_at,
-            rejection_reason,
-            rejected_by,
-            rejected_at,
+            assigned_to,
+            assigned_remarks,
+            description,
+            target_date,
+            type,
+            created_by,
+            cm_status,
             created_at,
             updated_at
           ) VALUES (${placeholders})`;
@@ -470,6 +503,126 @@ app.put('/api/psc/:id/rootcause', async (req, res) => {
   }
 });
 
+app.post('/api/psc/:id/countermeasure', async (req, res) => {
+  try {
+    const { description, targetDate, type, created_by } = req.body;
+    // Find root_cause for this psc
+    const rcRes = await pool.query('SELECT * FROM root_cause WHERE psccard_id = $1 LIMIT 1', [req.params.id]);
+    const rootCause = rcRes.rows[0];
+    if (!rootCause) return res.status(400).json({ error: 'Root cause not found for this PSC. Save root cause first.' });
+
+    const insertQ = `INSERT INTO countermeasure (root_cause_id, description, target_date, type, created_by, cm_status, created_at, updated_at)
+      VALUES ($1,$2,$3,$4,$5,'For Validation',$6,$7) RETURNING *`;
+    const now = new Date();
+    const cmRes = await pool.query(insertQ, [rootCause.id, description, targetDate || null, type || null, created_by || null, now, now]);
+
+    const cm = cmRes.rows[0];
+
+    // Insert an initial 'User Comment' log entry indicating creation (keeps history consistent)
+    await pool.query(
+      `INSERT INTO countermeasure_log (countermeasure_id, log_type, log_text, logged_by, created_at)
+       VALUES ($1, 'User Comment', $2, $3, $4)`,
+      [cm.id, `Countermeasure created: ${description || ''}`, created_by || null, now]
+    );
+
+    // Return the PSC (updated) so frontend can refresh easily
+    const pscRes = await pool.query('SELECT * FROM psccard WHERE id = $1', [req.params.id]);
+    // Reuse your existing mapFullPscRow function in file — assume available
+    // If mapFullPscRow is defined later, this code may need to be moved; adjust accordingly.
+    if (typeof mapFullPscRow === 'function') {
+      const joined = await mapFullPscRow(pscRes.rows[0]);
+      return res.json(joined);
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('❌ POST /api/psc/:id/countermeasure error:', err && err.stack || err);
+    res.status(500).json({ error: err.message || String(err) });
+  }
+});
+
+// Fetch countermeasure history (chronological) from countermeasure_log
+app.get('/api/countermeasure/:cmId/history', async (req, res) => {
+  try {
+    const cmId = req.params.cmId;
+    const q = `SELECT cl.*, u.username AS logged_by_name
+               FROM countermeasure_log cl
+               LEFT JOIN users u ON cl.logged_by = u.id
+               WHERE cl.countermeasure_id = $1
+               ORDER BY cl.created_at ASC`;
+    const result = await pool.query(q, [cmId]);
+    const rows = result.rows.map(r => ({
+      id: r.id,
+      countermeasure_id: r.countermeasure_id,
+      type: r.log_type,
+      text: r.log_text,
+      logged_by: r.logged_by,
+      logged_by_name: r.logged_by_name,
+      timestamp: r.created_at
+    }));
+    res.json(rows);
+  } catch (err) {
+    console.error('❌ GET /api/countermeasure/:cmId/history error:', err && err.stack || err);
+    res.status(500).json({ error: err.message || String(err) });
+  }
+});
+
+// Post a user comment on a countermeasure:
+// - Inserts a countermeasure_log entry with log_type = 'User Comment'
+// - If CM's current cm_status is 'Pending', update it to 'For Validation'
+app.post('/api/countermeasure/:cmId/comment', async (req, res) => {
+  try {
+    const cmId = req.params.cmId;
+    const { comment, logged_by } = req.body;
+    if (!comment || !comment.toString().trim()) return res.status(400).json({ error: 'Comment text required' });
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const now = new Date();
+      await client.query(
+        `INSERT INTO countermeasure_log (countermeasure_id, log_type, log_text, logged_by, created_at)
+         VALUES ($1, 'User Comment', $2, $3, $4)`,
+        [cmId, comment, logged_by || null, now]
+      );
+
+      // Update status if Pending -> For Validation
+      const cmRes = await client.query('SELECT cm_status FROM countermeasure WHERE id = $1 FOR UPDATE', [cmId]);
+      if (cmRes.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Countermeasure not found' });
+      }
+      const currentStatus = cmRes.rows[0].cm_status || 'Pending';
+      if ((currentStatus || '').toLowerCase() === 'pending') {
+        await client.query(`UPDATE countermeasure SET cm_status = 'For Validation', updated_at = $2 WHERE id = $1`, [cmId, now]);
+      }
+
+      await client.query('COMMIT');
+
+      // Return refreshed history for convenience
+      const hist = await pool.query(
+        `SELECT cl.*, u.username AS logged_by_name
+               FROM countermeasure_log cl
+               LEFT JOIN users u ON cl.logged_by = u.id
+               WHERE cl.countermeasure_id = $1
+               ORDER BY cl.created_at ASC`,
+        [cmId]
+      );
+      res.json({ success: true, history: hist.rows });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error('❌ POST /api/countermeasure/:cmId/comment error:', err && err.stack || err);
+    res.status(500).json({ error: err.message || String(err) });
+  }
+});
+
+
+
 // effectiveness check
 app.put('/api/psc/:id/effectcheck', async (req, res) => {
   try {
@@ -485,9 +638,9 @@ app.put('/api/psc/:id/effectcheck', async (req, res) => {
       const rootCause = rootCauseRes.rows[0];
       let hasAccepted = false;
       if (rootCause) {
-        const cmQ = `SELECT status FROM countermeasure WHERE root_cause_id = $1`;
+        const cmQ = `SELECT cm_status FROM countermeasure WHERE root_cause_id = $1`;
         const cmRes = await pool.query(cmQ, [rootCause.id]);
-        hasAccepted = cmRes.rows.some(row => (row.status || '').toLowerCase() === 'accepted');
+        hasAccepted = cmRes.rows.some(row => ((row.cm_status || '')).toString().toLowerCase() === 'accepted');
       }
       if (!hasAccepted) {
         await client.query('ROLLBACK');

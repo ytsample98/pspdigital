@@ -148,6 +148,18 @@ CREATE TABLE IF NOT EXISTS psccard (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+-- Corrective action table
+CREATE TABLE IF NOT EXISTS corrective (
+  id SERIAL PRIMARY KEY,
+  psc_id INTEGER NOT NULL REFERENCES psccard(id) ON DELETE CASCADE,
+  action_taken TEXT NOT NULL,
+  done_by INTEGER REFERENCES users(id),
+  corrective_assign_to INTEGER REFERENCES department(id),
+  corrective_comments TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT unique_psc_corrective UNIQUE (psc_id)
+);
 CREATE TABLE IF NOT EXISTS root_cause (
   id SERIAL PRIMARY KEY,
   psccard_id INTEGER NOT NULL REFERENCES psccard(id) ON DELETE CASCADE,
@@ -173,18 +185,7 @@ CREATE TABLE IF NOT EXISTS countermeasure (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
--- Corrective action table
-CREATE TABLE IF NOT EXISTS corrective (
-  id SERIAL PRIMARY KEY,
-  psc_id INTEGER NOT NULL REFERENCES psccard(id) ON DELETE CASCADE,
-  action_taken TEXT NOT NULL,
-  done_by INTEGER REFERENCES users(id),
-  corrective_assign_to INTEGER REFERENCES department(id),
-  corrective_comments TEXT,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT unique_psc_corrective UNIQUE (psc_id)
-);
+
 
 -- Effectiveness check table
 CREATE TABLE IF NOT EXISTS effectiveness_check (
@@ -217,3 +218,63 @@ CREATE TRIGGER update_corrective_timestamp BEFORE UPDATE ON corrective
   FOR EACH ROW EXECUTE FUNCTION update_timestamp_column();
 CREATE TRIGGER update_effectiveness_timestamp BEFORE UPDATE ON effectiveness_check
   FOR EACH ROW EXECUTE FUNCTION update_timestamp_column();
+CREATE TABLE root_cause_draft (
+  id SERIAL PRIMARY KEY,
+  psccard_id INT REFERENCES psccard(id) ON DELETE CASCADE,
+  why1 TEXT,
+  why2 TEXT,
+  why3 TEXT,
+  why4 TEXT,
+  why5 TEXT,
+  filled_by INT REFERENCES users(id),
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+ALTER TABLE root_cause_draft ADD CONSTRAINT unique_psccard_id UNIQUE (psccard_id);
+
+CREATE TABLE countermeasure_draft (
+  id SERIAL PRIMARY KEY,
+  root_cause_draft_id INT REFERENCES root_cause_draft(id) ON DELETE CASCADE,
+  countermeasure TEXT,
+  targetDate DATE,
+  type TEXT,
+  actionRemarks TEXT,
+  assignTo INT,
+  comments TEXT,
+  status TEXT DEFAULT 'Draft',
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Migration: add escalation support + monthly summary (psp_competency_monthly)
+-- Run this on your psp_db. Adapt names if you customized tables.
+
+-- 1) Add escalation_id to psccard so we can store current escalation level
+ALTER TABLE psccard
+  ADD COLUMN IF NOT EXISTS escalation_id INTEGER REFERENCES escalation(id);
+
+-- 2) Create escalation history table (optional but recommended for accurate "escalated" counts)
+--    If you prefer to compute "cards escalated" only from current-state (no history),
+--    the refresh function will fall back to a conservative count based on escalation_id presence.
+CREATE TABLE IF NOT EXISTS psccard_escalation_history (
+  id SERIAL PRIMARY KEY,
+  psccard_id INTEGER NOT NULL REFERENCES psccard(id) ON DELETE CASCADE,
+  from_escalation_id INTEGER REFERENCES escalation(id),
+  to_escalation_id INTEGER REFERENCES escalation(id),
+  changed_by INTEGER REFERENCES users(id),
+  changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 3) Summary table (denormalized, one row per year+month)
+CREATE TABLE IF NOT EXISTS psp_competency_monthly (
+  year            int NOT NULL,
+  month           int NOT NULL,
+  month_start     date NOT NULL,
+  cards_raised    int NOT NULL DEFAULT 0,
+  cards_closed    int NOT NULL DEFAULT 0,
+  cards_opened    int NOT NULL DEFAULT 0,
+  cards_escalated int NOT NULL DEFAULT 0,
+  pending         int NOT NULL DEFAULT 0,
+  closure_percent numeric(5,2),
+  PRIMARY KEY (year, month)
+);

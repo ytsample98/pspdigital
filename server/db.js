@@ -9,5 +9,5 @@ const pool = new Pool({
   password: process.env.PG_PASSWORD,
   port: process.env.PG_PORT,
 });
-
+console.log("DB password:", process.env.PG_PASSWORD, typeof process.env.PG_PASSWORD);
 module.exports = pool;
