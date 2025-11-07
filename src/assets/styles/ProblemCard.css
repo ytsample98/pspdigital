@@ -1,0 +1,208 @@
+.problemcard .card {
+  width: 650px;
+  margin: 20px auto;
+  border: 2px solid #000;
+   background-color: #e0e7f1;
+  padding: 10px;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+}
+
+.problemcard .header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 2px solid #000;
+  padding: 6px 10px;
+  background-color: #e0e7f1;
+  font-weight: bold;
+}
+
+.problemcard .logo {
+  font-size: 20px;
+  font-weight: bold;
+  color: #003366;
+}
+
+.problemcard  .section {
+  padding: 12px;
+   background-color: #e0e7f1;
+}
+
+.problemcard  .section-title {
+  font-size: 13px;
+  margin: 4px 0;
+  font-weight: bold;
+}
+
+.problemcard  .row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.problemcard  .label {
+  flex: 1;
+}
+
+.problemcard  .textarea-label {
+  flex: 2;
+  display: flex;
+  flex-direction: column;
+}
+
+.problemcard  .no-border-textarea {
+  border: none;
+  resize: none;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+}
+
+.problemcard  .readonly {
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+.problemcard  .bottom {
+  display: flex;
+  justify-content: space-between;
+}
+
+.problemcard .escalation .span-group {
+  display: flex;           /* keep spans in one row */
+  gap: 6px;                /* space between them */
+  align-items: center;
+}
+
+.problemcard .escalation .span-group .badge {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  width: 40px;             /* bigger width */
+  height: 30px;            /* bigger height */
+  font-size: 13px;         /* slightly larger text */
+  border: 2px solid #333;
+  background: #e0e7f1;
+  border-radius: 5px;
+  cursor: default;         /* not clickable */
+  text-transform: uppercase;
+}
+
+/* Active red badge */
+.problemcard .escalation .span-group .badge-danger {
+  background-color: #dc3545;
+  color: #fff;
+  border-color: #b52b38;
+}
+
+/* Inactive gray badge */
+.problemcard .escalation .span-group .badge-secondary {
+  background-color: #ccc;
+  color: #333;
+  border-color: #999;
+}
+
+
+.problemcard  .footer {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 4px;
+  font-weight: 500;
+  font-size: 12px;
+  background-color: #e0e7f1;
+}
+
+
+.problemcard  .signature-area {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin: 10px 0; 
+}
+
+.problemcard  .signature-line {
+  width: 180px;
+  border-bottom: 1px solid #000;
+  margin-top: 6px;
+  height: 20px; 
+}
+
+.problemcard  .signature-label {
+  font-size: 12px;
+  margin-top: 2px;
+  font-style: italic;
+  color: #333;
+  margin-left: 10px;
+}
+
+
+.problemcard  .row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 8px; 
+  margin-bottom: 12px;
+}
+
+
+.problemcard  .row label {
+  flex: 1 1 28%; 
+  background-color: #e0e7f1; 
+   border: 2px solid #000;
+  padding: 10px 12px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  box-sizing: border-box;
+  display: flex;
+  min-height: 48px; 
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+
+.problemcard  .row .readonly {
+  font-weight: bold;
+  color: #1f1f1f;
+}
+
+.problemcard  .root-cause-section {
+  border: 2px solid #000; 
+  background-color: #e0e7f1; 
+  padding: 7px;
+  margin-top: -12px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.problemcard  .planned-section{
+  border: 2px solid #000; 
+  background-color: #e0e7f1; 
+  padding: 7px;
+  margin-top: 6px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.problemcard  .description-box {
+  position: relative;
+  border: 2px solid #000;
+  padding: 5px;
+  margin-bottom: 15px;
+  margin-top: -16px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+
+.problemcard  .description-header {
+  position: absolute;
+  top: 10px;
+  right: 15px;
+}
+
+
+.problemcard  .line-label {
+  background: #e0e7f1;
+  border: 2px solid #000;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-weight: 500;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}

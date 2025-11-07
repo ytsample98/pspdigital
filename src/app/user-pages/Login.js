@@ -2,6 +2,14 @@ import React, { Component } from 'react';
 import { Form } from 'react-bootstrap';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
+import '../../assets/styles/Login.css';
+
+/*
+  UI-only changes:
+  - background & logo kept as images in src/assets/images/
+  - form layout changed visually (glassmorphism + blur + stylish font)
+  - no changes to login logic (axios call, localStorage, redirect are untouched)
+*/
 
 class Login extends Component {
   state = { email: "", password: "", error: "" };
@@ -11,6 +19,7 @@ class Login extends Component {
     try {
       const res = await axios.post('/api/login', { usermail: this.state.email, password: this.state.password });
       // store minimal user in localStorage
+      console.log('login success', res.data.password);
       localStorage.setItem('dcmsUser', JSON.stringify(res.data));
       window.location.href = '/dashboard';
     } catch (err) {
@@ -21,14 +30,37 @@ class Login extends Component {
 
   render() {
     return (
-      <div className="d-flex align-items-center auth px-0 min-vh-100 py-5">
-        <div className="row w-100 mx-0">
-          <div className="col-lg-4 mx-auto">
-            <div className="auth-form-light text-left py-5 px-4 px-sm-5">
+      <div className="login-page">
+          <img
+        src={require('../../assets/images/yaanarlogo.png')} // 👈 replace with your new left logo image
+        alt="Left Logo"
+        className="corner-logo left"
+      />
+      <img
+        src={require('../../assets/images/Mahlelogo.jpg')}
+        alt="MAHLE"
+        className="corner-logo right"
+      />
+        <div className="login-overlay">
+          <div className="left-panel">
+            <div className="brand-area">
              
-              <h4>Hello! let's get started</h4>
-              <h6 className="font-weight-light">Sign in to continue.</h6>
-              <Form className="pt-3" onSubmit={this.handleSubmit}>
+              <div className="brand-copy">
+                <h1>Shop Floor Management - Problem Solving Process</h1>
+              </div>
+            </div>
+          </div>
+
+          <div className="right-panel">
+            <div className="signup-card glass-card">
+              <div className="card-header text-center">
+  
+  <p className="mt-2">PSP Digital</p>
+</div>
+
+              
+
+              <Form className="pt-2" onSubmit={this.handleSubmit}>
                 <Form.Group>
                   <Form.Control
                     type="email"
@@ -59,6 +91,7 @@ class Login extends Component {
                   </button>
                 </div>
 
+                
               </Form>
             </div>
           </div>

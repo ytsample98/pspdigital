@@ -105,6 +105,20 @@ console.log('Sending payload:', payload);
     setShowPreview(false);
     fetchPscs();
   };
+  const filteredPSCs = pscs.filter(p => {
+    const s = searchTerm.toLowerCase();
+     return (
+                  (p.problem_number || p.problemNumber || '').toLowerCase().includes(s) ||
+                  (p.initiator_name || p.initiatorName || '').toLowerCase().includes(s) ||
+                  (p.date || '').toLowerCase().includes(s) ||
+                  (p.shift || '').toLowerCase().includes(s) ||
+                  (p.value_stream_line || p.valueStreamLine || '').toLowerCase().includes(s) ||
+                  (p.ticket_stage || p.ticketStage || '').toLowerCase().includes(s) ||
+                  (p.short_description || p.shortDescription || '').toLowerCase().includes(s) ||
+                  (p.status || '').toLowerCase().includes(s)
+                );
+              });
+
 
   // Default Table/List view
   const TableView = () => (
@@ -132,19 +146,8 @@ console.log('Sending payload:', payload);
               </tr>
             </thead>
             <tbody>
-              {pscs.filter(p => {
-                const s = searchTerm.toLowerCase();
-                return (
-                  (p.problem_number || p.problemNumber || '').toLowerCase().includes(s) ||
-                  (p.initiator_name || p.initiatorName || '').toLowerCase().includes(s) ||
-                  (p.date || '').toLowerCase().includes(s) ||
-                  (p.shift || '').toLowerCase().includes(s) ||
-                  (p.value_stream_line || p.valueStreamLine || '').toLowerCase().includes(s) ||
-                  (p.ticket_stage || p.ticketStage || '').toLowerCase().includes(s) ||
-                  (p.short_description || p.shortDescription || '').toLowerCase().includes(s) ||
-                  (p.status || '').toLowerCase().includes(s)
-                );
-              }).map(psc => (
+              {filteredPSCs.length > 0 ? (
+              filteredPSCs.map(psc => (
                 <tr key={psc.id}>
                   <td><button className='btn btn-link p-0' onClick={() => openPreview(psc)}>{psc.problemNumber || psc.problem_number}</button></td>
                   <td>{psc.initiatorName || psc.initiator_name}</td>
@@ -155,7 +158,17 @@ console.log('Sending payload:', payload);
                   <td>{psc.shortDescription || psc.short_description}</td>
                   <td>{psc.status}</td>
                 </tr>
-              ))}
+              ))
+            ): (
+              <tr>
+                  <td colSpan="8" className="text-center">
+      <div className="spinner-border text-primary" role="status">
+        <span className="sr-only">Loading...</span>
+      </div>
+      </td>
+              </tr>
+
+            )}
             </tbody>
           </table>
         </div>

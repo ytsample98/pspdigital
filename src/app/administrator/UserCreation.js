@@ -3,18 +3,6 @@ import React, { Component } from 'react';
 import axios from 'axios';
 import '../../assets/styles/components/_custom-table.scss';
 
-/*
-  UserCreation component
-  - Simple create/edit/delete user UI (form + table)
-  - Responsibilities and rights are plain text fields (per request)
-  - Stores users in Firestore collection: "users"
-  - Behavior:
-    - Shows table of users by default
-    - "+ Create User" opens the form (replaces table view)
-    - Edit loads data into the form
-    - Save creates/updates document in Firestore
-    - Delete removes document from Firestore after confirmation
-*/
 
 class UserCreation extends Component {
   state = {

@@ -4,6 +4,7 @@ import Navbar from './shared/NavBar';
 import Sidebar from './shared/Sidebar'
 import AppRoutes from './AppRoutes';
 import './App.scss';
+
 // We no longer use Firebase auth here; rely on server login that stores `dcmsUser` in localStorage
 
 const Login = lazy(() => import('./user-pages/Login'));

@@ -267,6 +267,7 @@ const mapFullPscRow = async (pscRow) => {
     valueStreamLine: pscRow.value_stream_line,
     lineCode: pscRow.line_code,
     shortDescription: pscRow.short_description,
+    problemtype:pscRow.problem_type,
     problemDescription: pscRow.problem_description,
     qtyAffected: pscRow.qty_affected,
     partAffected: pscRow.part_affected,
@@ -278,7 +279,9 @@ const mapFullPscRow = async (pscRow) => {
       countermeasures // attach array of CMs
     } : null,
     effectivenessCheck,
+    
   };
+ 
 };
 
 app.get('/api/psc', async (req, res) => {
@@ -313,13 +316,17 @@ app.get('/api/psc/:id', async (req, res) => {
     res.status(500).json({ error: err.message || String(err) });
   }
 });
+app.get('/api/psc', async (req, res) => {
+  const result = await pool.query('SELECT id, problem_number, status FROM psccard');
+  res.json(result.rows);
+});
 
 app.post('/api/psc', async (req, res) => {
   try {
     // accept keys directly (we assume frontend sends snake_case as in PSCList)
     const allowed = [
       'problem_number', 'initiator_name', 'date', 'shift', 'value_stream_line',
-      'line_id', 'short_description', 'problem_description', 'qty_affected',
+      'line_id', 'short_description', 'problem_description', 'qty_affected','problem_type',
       'part_affected', 'supplier', 'status', 'ticket_stage', 'created_by'
     ];
     const keys = Object.keys(req.body).filter(k => allowed.includes(k));
@@ -356,7 +363,7 @@ app.post('/api/psc', async (req, res) => {
 app.put('/api/psc/:id', async (req, res) => {
   try {
     // whitelist allowed psc columns
-  const allowed = ['problem_number','initiator_name','date','shift','value_stream_line','line_code','short_description','problem_description','qty_affected','part_affected','supplier','status','ticket_stage','corrective_action','root_cause','corrective_action_by','root_cause_by','corrective_action_date','root_cause_date','effectiveness_checked','effectiveness_remarks','effectiveness_date'];
+  const allowed = ['problem_number','initiator_name','date','shift','value_stream_line','problem_type','line_code','short_description','problem_description','qty_affected','part_affected','supplier','status','ticket_stage','corrective_action','root_cause','corrective_action_by','root_cause_by','corrective_action_date','root_cause_date','effectiveness_checked','effectiveness_remarks','effectiveness_date'];
     const keys = Object.keys(req.body).filter(k => allowed.includes(k));
     if (keys.length === 0) return res.status(400).json({ error: 'No valid fields provided' });
     const values = keys.map(k => req.body[k]);
@@ -511,19 +518,26 @@ app.post('/api/psc/:id/countermeasure', async (req, res) => {
     const rootCause = rcRes.rows[0];
     if (!rootCause) return res.status(400).json({ error: 'Root cause not found for this PSC. Save root cause first.' });
 
-    const insertQ = `INSERT INTO countermeasure (root_cause_id, description, target_date, type, created_by, cm_status, created_at, updated_at)
-      VALUES ($1,$2,$3,$4,$5,'For Validation',$6,$7) RETURNING *`;
-    const now = new Date();
-    const cmRes = await pool.query(insertQ, [rootCause.id, description, targetDate || null, type || null, created_by || null, now, now]);
+    const insertQ = `INSERT INTO countermeasure (root_cause_id, psccard_id, description, target_date, type, created_by, cm_status, created_at, updated_at)
+  VALUES ($1, $2, $3, $4, $5, $6, 'Pending', $7, $8) RETURNING *`;
+const now = new Date();
+const cmRes = await pool.query(insertQ,
+  [rootCause.id, req.params.id, description, targetDate || null, type || null, created_by || null, now, now]);
 
-    const cm = cmRes.rows[0];
+const cm = cmRes.rows[0];
 
-    // Insert an initial 'User Comment' log entry indicating creation (keeps history consistent)
-    await pool.query(
-      `INSERT INTO countermeasure_log (countermeasure_id, log_type, log_text, logged_by, created_at)
-       VALUES ($1, 'User Comment', $2, $3, $4)`,
-      [cm.id, `Countermeasure created: ${description || ''}`, created_by || null, now]
-    );
+// 1. Insert countermeasure_log entry for creation event
+await pool.query(
+  `INSERT INTO countermeasure_log (countermeasure_id, log_type, log_text, logged_by, created_at)
+   VALUES ($1, 'User Comment', $2, $3, $4)`,
+  [cm.id, `Countermeasure created: ${description || ''}`, created_by || null, now]
+);
+
+// 2. Set the PSC status to "Work in Progress"
+await pool.query(
+  `UPDATE psccard SET status = 'Work in Progress', ticket_stage = 'Do', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+  [req.params.id]
+);
 
     // Return the PSC (updated) so frontend can refresh easily
     const pscRes = await pool.query('SELECT * FROM psccard WHERE id = $1', [req.params.id]);
@@ -586,16 +600,22 @@ app.post('/api/countermeasure/:cmId/comment', async (req, res) => {
         [cmId, comment, logged_by || null, now]
       );
 
-      // Update status if Pending -> For Validation
-      const cmRes = await client.query('SELECT cm_status FROM countermeasure WHERE id = $1 FOR UPDATE', [cmId]);
-      if (cmRes.rows.length === 0) {
-        await client.query('ROLLBACK');
-        return res.status(404).json({ error: 'Countermeasure not found' });
-      }
-      const currentStatus = cmRes.rows[0].cm_status || 'Pending';
-      if ((currentStatus || '').toLowerCase() === 'pending') {
-        await client.query(`UPDATE countermeasure SET cm_status = 'For Validation', updated_at = $2 WHERE id = $1`, [cmId, now]);
-      }
+     const cmCurrent = await client.query('SELECT cm_status, psccard_id FROM countermeasure WHERE id = $1 FOR UPDATE', [cmId]);
+if (cmCurrent.rows.length === 0) { /* ... */ }
+const cmStatus = cmCurrent.rows[0].cm_status || 'Pending';
+const psccardId = cmCurrent.rows[0].psccard_id;
+
+if (cmStatus === 'Pending') {
+  await client.query(
+    `UPDATE countermeasure SET cm_status = 'For Validation', updated_at = $2 WHERE id = $1`,
+    [cmId, now]
+  );
+  // Also update PSC status
+  await client.query(
+    `UPDATE psccard SET status = 'For Validation', ticket_stage = 'Check', updated_at = $2 WHERE id = $1`,
+    [psccardId, now]
+  );
+}
 
       await client.query('COMMIT');
 
@@ -622,57 +642,100 @@ app.post('/api/countermeasure/:cmId/comment', async (req, res) => {
 });
 
 
-
-// effectiveness check
 app.put('/api/psc/:id/effectcheck', async (req, res) => {
   try {
-    const { status, checked_by, checked_remarks } = req.body;
+    const { countermeasure_id, check_status, checked_by, remarks } = req.body;
+    if (!countermeasure_id) return res.status(400).json({ error: 'countermeasure_id is required' });
+    if (!check_status) return res.status(400).json({ error: 'check_status is required' });
+
     const client = await pool.connect();
-    
     try {
       await client.query('BEGIN');
-      
-      // Validate: must have at least one accepted countermeasure
-      const rootCauseQ = `SELECT id FROM root_cause WHERE psccard_id = $1`;
-      const rootCauseRes = await pool.query(rootCauseQ, [req.params.id]);
-      const rootCause = rootCauseRes.rows[0];
-      let hasAccepted = false;
-      if (rootCause) {
-        const cmQ = `SELECT cm_status FROM countermeasure WHERE root_cause_id = $1`;
-        const cmRes = await pool.query(cmQ, [rootCause.id]);
-        hasAccepted = cmRes.rows.some(row => ((row.cm_status || '')).toString().toLowerCase() === 'accepted');
-      }
-      if (!hasAccepted) {
+
+      // 1) Verify that the countermeasure belongs to the PSC requested (security)
+      const cmQ = `
+        SELECT c.id AS cm_id, c.root_cause_id, r.psccard_id
+        FROM countermeasure c
+        JOIN root_cause r ON c.root_cause_id = r.id
+        WHERE c.id = $1
+        FOR UPDATE
+      `;
+      const cmRes = await client.query(cmQ, [countermeasure_id]);
+      if (cmRes.rows.length === 0) {
         await client.query('ROLLBACK');
-        return res.status(400).json({ error: 'No accepted countermeasure found. Effectiveness check not allowed.' });
+        return res.status(404).json({ error: 'Countermeasure not found' });
+      }
+      const cmRow = cmRes.rows[0];
+      if (String(cmRow.psccard_id) !== String(req.params.id)) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Countermeasure does not belong to the specified PSC' });
+      }
+      // Before executing your main INSERT
+const problemNumber = req.body.problem_number;
+const exists = await pool.query("SELECT 1 FROM psccard WHERE problem_number = $1", [problemNumber]);
+if (exists.rows.length) {
+  return res.status(400).json({ error: 'Problem number already exists' });
+}
+
+
+      // 2) Insert or update effectiveness_check keyed by countermeasure_id
+      // NOTE: schema: effectiveness_check(countermeasure_id, checked_by, check_status, remarks, checked_at)
+      // Do not attempt to set `updated_at` here since the table does not have that column.
+     // 2) Insert or update effectiveness_check keyed by countermeasure_id
+await client.query(
+  `INSERT INTO effectiveness_check
+    (countermeasure_id, psccard_id, checked_by, check_status, remarks, checked_at)
+   VALUES ($1, $2, $3, $4, $5, $6)
+   ON CONFLICT (countermeasure_id)
+   DO UPDATE SET
+     psccard_id = EXCLUDED.psccard_id,
+     checked_by = EXCLUDED.checked_by,
+     check_status = EXCLUDED.check_status,
+     remarks = EXCLUDED.remarks,
+     checked_at = EXCLUDED.checked_at`,
+  [countermeasure_id, cmRow.psccard_id, checked_by || null, check_status, remarks || null, new Date()]
+);
+
+
+      // 3) Update the countermeasure's cm_status to reflect the check result
+      await client.query(
+        `UPDATE countermeasure
+         SET cm_status = $1, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2`,
+        [check_status, countermeasure_id]
+      );
+
+      // 4) Update the overall PSC status/ticket_stage based on the check_status decision
+      //    - If accepted => PSC: status = 'Completed', ticket_stage = 'Action'
+      //    - If rejected => PSC: status = 'Work in Progress', ticket_stage = 'Do'
+      //    - Other statuses -> set PSC to 'For Validation' / 'Check' to reflect progress
+      let pscStatus = 'For Validation';
+      let pscStage = 'Check';
+      if ((check_status || '').toString().toLowerCase() === 'accepted') {
+        pscStatus = 'Completed';
+        pscStage = 'Action';
+      } else if ((check_status || '').toString().toLowerCase() === 'rejected') {
+        pscStatus = 'Work in Progress';
+        pscStage = 'Do';
       }
 
-      // Update or insert effectiveness check
       await client.query(
-        `INSERT INTO effectiveness_check 
-        (psc_id, status, check_date, checked_by, checked_remarks)
-        VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT (psc_id) 
-        DO UPDATE SET 
-          status = $2, check_date = $3, checked_by = $4,
-          checked_remarks = $5, updated_at = CURRENT_TIMESTAMP`,
-        [req.params.id, status, new Date(), checked_by, checked_remarks]
+        `UPDATE psccard
+         SET status = $1, ticket_stage = $2, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $3`,
+        [pscStatus, pscStage, req.params.id]
       );
 
-      // Update PSC status
-      await client.query(
-        `UPDATE psccard SET 
-         status = $1, 
-         ticket_stage = $2, 
-         updated_at = CURRENT_TIMESTAMP 
-         WHERE id = $3`,
-        [status === 'Accepted' ? 'Completed' : 'For Validation', 
-         status === 'Accepted' ? 'Action' : 'Check',
-         req.params.id]
-      );
+const logType = (check_status === 'Accepted') ? 'Acceptance Remark' : 'Rejection Remark';
+await client.query(
+  `INSERT INTO countermeasure_log (countermeasure_id, log_type, log_text, logged_by, created_at)
+   VALUES ($1, $2, $3, $4, $5)`,
+  [countermeasure_id, logType, remarks, checked_by, new Date()]
+);
 
       await client.query('COMMIT');
-      // Return joined PSC data
+
+      // Return refreshed PSC row for UI to reload state
       const pscRes = await pool.query('SELECT * FROM psccard WHERE id = $1', [req.params.id]);
       const joined = await mapFullPscRow(pscRes.rows[0]);
       res.json(joined);
@@ -687,8 +750,6 @@ app.put('/api/psc/:id/effectcheck', async (req, res) => {
     res.status(500).json({ error: err.message || String(err) });
   }
 });
-
-// update user (partial)
 app.put('/api/users/:id', async (req, res) => {
   try {
     const allowed = TABLE_COLUMNS['users'];
@@ -813,9 +874,6 @@ app.get('/api/psp/ytd-metrics', async (req, res) => {
     `;
     const closedResult = await pool.query(closedQuery, [startDateStr]);
     const cardsClosed = parseInt(closedResult.rows[0].count, 10);
-
-    console.log('YTD Metrics:', { cardsOpened, cardsClosed });
-
     res.json({ cardsOpened, cardsClosed });
   } catch (err) {
     console.error('❌ GET /api/psp/ytd-metrics error:', err.message);
@@ -823,56 +881,59 @@ app.get('/api/psp/ytd-metrics', async (req, res) => {
   }
 });
 
-app.get('/api/psp/competency-report', async (req, res) => {
+app.get('/api/psp/yearly-report', async (req, res) => {
   try {
     const sql = `
-      WITH user_roles AS (
-        SELECT id AS user_id, user_resp_id FROM users
-      ),
-      psc_with_role AS (
-        SELECT p.id, p.date, p.status, u.user_resp_id,
-               ec.status AS effect_status,
-               corr.corrective_assign_to
-        FROM psccard p
-        JOIN user_roles u ON p.created_by = u.user_id
-        LEFT JOIN effectiveness_check ec ON ec.psc_id = p.id
-        LEFT JOIN corrective corr ON corr.psc_id = p.id
-      ),
-      monthly AS (
-        SELECT date_trunc('month', date) AS m, user_resp_id,
-          COUNT(*) FILTER (WHERE user_resp_id = 2) AS raised,
-          COUNT(*) FILTER (WHERE status = 'Open') AS opened,
-          COUNT(*) FILTER (WHERE effect_status = 'Accepted') AS closed,
-          COUNT(*) FILTER (WHERE corrective_assign_to IS NOT NULL AND user_resp_id IN (3,4)) AS escalated
-        FROM psc_with_role
-        GROUP BY m, user_resp_id
-      )
-      SELECT to_char(m, 'Mon-YY') AS month, user_resp_id,
-             COALESCE(raised,0) AS cards_raised,
-             COALESCE(opened,0) AS cards_opened,
-             COALESCE(closed,0) AS cards_closed,
-             COALESCE(escalated,0) AS cards_escalated
-      FROM monthly
-      ORDER BY m DESC, user_resp_id;
+      SELECT * FROM
+            (SELECT us.resp_name,
+            TO_CHAR(p.date, 'Mon') AS month,
+            COUNT(*) FILTER (WHERE  p.status = 'For Validation' OR p.status = 'Work in Progress' OR p.status = 'Completed' OR p.status='Open') AS raised,
+            COUNT(*) FILTER (WHERE p.status = 'Completed') AS closed,
+            COUNT(*) FILTER (WHERE p.status = 'For Validation' OR p.status = 'Work in Progress') AS opened
+            FROM psccard as p 
+            LEFT JOIN users as u on p.initiator_name=u.username 
+            left join user_responsibility as us on u.user_resp_id=us.id
+            where TO_CHAR(p.date,'yyyy')='2025' 
+            GROUP BY TO_CHAR(p.date, 'Mon'),us.resp_name
+            ORDER BY MIN(p.date) ) as ps WHERE  (ps.closed !=0 OR ps.opened !=0);
     `;
 
     const result = await pool.query(sql);
+    const data = result.rows.map(row => {
+      // convert DB counts (may come as strings) to numbers
+      const raised = Number(row.raised) || 0;
+      const closed = Number(row.closed) || 0;
+      const opened = Number(row.opened) || 0;
 
-    const ROLE_MAP = { 2: 'TL', 3: 'VSL', 4: 'Plant Head' };
-    const out = result.rows.map(r => ({
-      month: r.month,
-      role: ROLE_MAP[r.user_resp_id] || `Role-${r.user_resp_id}`,
-      cards_raised: Number(r.cards_raised),
-      cards_opened: Number(r.cards_opened),
-      cards_closed: Number(r.cards_closed),
-      cards_escalated: Number(r.cards_escalated)
-    }));
-    console.log('Competency Report:', out); 
+      const vsl_escalated = raised -closed ;    // change logic if you have different formula
+      const plant_escalated = 0;  // change if needed
 
-    res.json(out);
+      return {
+        month: row.month,
+        teamLeader: {
+          raised,
+          tl_closed: closed,
+          tl_opened: opened,
+        },
+        valueStreamLeader: {
+          vsl_escalated,
+          //vsl_closed: closed,
+          //vsl_opened: opened
+        },
+        plantLevel: {
+          //plant_escalated,
+          //plant_closed: closed,
+          //plant_opened: opened
+        },
+        pending: 0,
+        competency: 0
+      };
+    });
+
+    res.json(data);
     
   } catch (err) {
-    console.error('❌ GET /api/psp/competency-report error:', err.message);
+    console.error('❌ GET /api/psp/yearly-report error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

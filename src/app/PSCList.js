@@ -2,7 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import PSCFullView from './PSCFullView';
+import  sendNotification  from './shared/NavBar';
 
+
+import toast, { Toaster } from 'react-hot-toast';
 
 export default function PSCList() {
   const [pscs, setPscs] = useState([]);
@@ -13,10 +16,17 @@ export default function PSCList() {
 const [searchTerm, setSearchTerm] = useState('');
   const emptyForm = () => ({
     problem_number: '', searchTerm: '', initiator_name: '', date: '', shift: '', value_stream_line: '',
-    line_id: '', short_description: '', problem_description: '', qty_affected: '',
+    line_id: '', short_description: '', problem_description: '', qty_affected: '',problem_type:'',
     part_affected: '', supplier: '', status: 'Open'
   });
-
+const sendNotification = (message) => {
+  window.dispatchEvent(new CustomEvent("psc-notification", { detail: message }));
+};
+// const sendNotification = (cardId, message) => {
+//   window.dispatchEvent(
+//     new CustomEvent("psc-notification", { detail: { cardId, message } })
+//   );
+// };
   const [form, setForm] = useState(emptyForm());
 
   useEffect(() => { fetchPscs(); fetchMasters(); }, []);
@@ -54,6 +64,7 @@ const [searchTerm, setSearchTerm] = useState('');
 
   const fetchPscs = async () => {
     const res = await axios.get('/api/psc');
+
     setPscs(res.data || []);
   };
 
@@ -95,25 +106,41 @@ const yyyy = today.getFullYear();
 const mm = String(today.getMonth() + 1).padStart(2, '0');
 const dd = String(today.getDate()).padStart(2, '0');
 const localDate = `${yyyy}-${mm}-${dd}`;
-  const handleSubmit = async e => {
-    e.preventDefault();
-    // Ensure stage/status defaults and problem number/initiator/date
-    const user = (() => { try { return JSON.parse(localStorage.getItem('dcmsUser')); } catch(e){return null;} })();
+const handleSubmit = async (e) => {
+  e.preventDefault();
+
+  try {
+    const user = (() => { 
+      try { return JSON.parse(localStorage.getItem('dcmsUser')); } 
+      catch (e) { return null; } 
+    })();
+
     const payload = {
-      // send the normalized field names: shift (id) and line_id (id)
       ...form,
       status: 'Open',
       ticket_stage: 'Plan',
       problem_number: form.problem_number || generateProblemNumber(),
-      initiator_name: form.initiator_name || (user && (user.userName || user.username || user.name || user.usermail)) || '',
-      // date must be YYYY-MM-DD
-      date:  localDate
+      initiator_name:
+        form.initiator_name ||
+        (user && (user.userName || user.username || user.name || user.usermail)) ||
+        '',
+      date: localDate,
     };
-    await axios.post('/api/psc', payload);
-    setForm(emptyForm());
-    setShowForm(false);
+
+     await axios.post('/api/psc', payload);
+     sendNotification('Card Created:101');
+    //sendNotification(`${form.problem_number}`);
+
     fetchPscs();
-  };
+    setForm(emptyForm());
+     setShowForm(false());
+
+  } catch (error) {
+    console.error('Error saving PSC:', error);
+    toast.error('❌ Failed to create PSC card');
+  }
+};
+
 
   const openPreview = (psc) => { setSelected(psc); setShowPreview(true); setShowForm(false); };
 
@@ -196,6 +223,7 @@ const localDate = `${yyyy}-${mm}-${dd}`;
             </tr>
           </thead>
           <tbody>
+             
             {filteredPSCs.length > 0 ? (
               filteredPSCs.map(psc => (
                 <tr key={psc.id}>
@@ -218,9 +246,11 @@ const localDate = `${yyyy}-${mm}-${dd}`;
               ))
             ) : (
               <tr>
-                <td colSpan="8" className="text-center text-muted">
-                  No matching records found
-                </td>
+                  <td colSpan="8" className="text-center">
+      <div className="spinner-border text-primary" role="status">
+        <span className="sr-only">Loading...</span>
+      </div>
+      </td>
               </tr>
             )}
           </tbody>
@@ -315,7 +345,24 @@ const localDate = `${yyyy}-${mm}-${dd}`;
           
           </div>
           <div className='form-row'>
-            <div className='form-group col-md-3'>
+            
+              <div className='form-group col-md-3'>
+  <label>Problem Type</label>
+  <select
+    className='form-control'
+    value={form.problem_type || ''}
+    onChange={handleChange}
+    required
+  >
+    <option value=''>-- Select KPI --</option>
+    <option value='S'>Safety</option>
+    <option value='Q'>Quality</option>
+    <option value='D'>Delivery</option>
+    <option value='C'>Check</option>
+    <option value='E'>Environment</option>
+  </select>
+</div>
+<div className='form-group col-md-3'>
               <label>Qty Affected</label>
               <input className='form-control' name='qty_affected' value={form.qty_affected} onChange={handleChange} placeholder='Qty Affected' /></div>
             <div className='form-group col-md-3'>
@@ -340,6 +387,7 @@ const localDate = `${yyyy}-${mm}-${dd}`;
   return (
     <div className="container-fluid">
       {showForm ? renderForm() : showPreview ? renderPreview() : renderTable()}
+      
     </div>
   );
 }

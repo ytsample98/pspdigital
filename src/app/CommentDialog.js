@@ -98,7 +98,7 @@ export default function CommentDialog({ show, onClose, cm, history = [], onSubmi
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <div style={{
             alignSelf: 'flex-start',
-            maxWidth: '85%',
+            maxWidth: '45%',
             padding: '10px 14px',
             borderRadius: 12,
             backgroundColor: '#f1f3f5',
@@ -115,12 +115,12 @@ export default function CommentDialog({ show, onClose, cm, history = [], onSubmi
   const cmTitle = cm ? (cm.countermeasure || cm.description || `ID: ${cm.id || 'unsaved'}`) : 'Countermeasure';
 
   return (
-    <Modal show={!!show} onHide={onClose} size="lg" centered>
+    <Modal show={!!show} onHide={onClose} centered>
       <Modal.Header closeButton>
-        <Modal.Title>Comments — {cmTitle}</Modal.Title>
+        <Modal.Title style={{ color: '#007bff' }}>Comments — {cmTitle}</Modal.Title>
       </Modal.Header>
       <Modal.Body>
-        <div style={{ maxHeight: '45vh', overflowY: 'auto', paddingBottom: 12 }}>
+        <div style={{ maxWidth:'100%', overflowY: 'auto', paddingBottom: 12 }}>
           {(!sortedHistory || sortedHistory.length === 0) ? (
             <div className="text-center text-muted">No history yet. Be the first to comment.</div>
           ) : (
@@ -144,9 +144,9 @@ export default function CommentDialog({ show, onClose, cm, history = [], onSubmi
         </div>
       </Modal.Body>
       <Modal.Footer>
-        <Button variant="secondary" onClick={onClose} disabled={submitting}>Close</Button>
+        {/*<Button variant="secondary" onClick={onClose} disabled={submitting}>Close</Button>*/}
         <Button variant="primary" onClick={handleSubmit} disabled={submitting}>
-          {submitting ? 'Submitting...' : 'Submit Comment'}
+          {submitting ? 'Submitting...' : 'Send'}
         </Button>
       </Modal.Footer>
     </Modal>

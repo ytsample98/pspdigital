@@ -8,6 +8,8 @@ import { Tabs, Tab } from 'react-bootstrap';
 
 export default function RootCause() {
   const [pscs, setPscs] = useState([]);
+  const [text, setText] = useState('');
+  const [rows, setRows] = useState([]);
   const [selected, setSelected] = useState(null);
 
   // root cause draft/final structure
@@ -21,7 +23,11 @@ export default function RootCause() {
     why5: '',
     countermeasures: []
   });
-
+const [form, setForm] = useState({
+    description: "",
+    date: "",
+    address: ""
+  });
   // Reassign state kept from original file for backward compatibility
   const [reassign, setReassign] = useState({remarks: '', assignTo: '' });
   const [showReassignSimple, setShowReassignSimple] = useState(false);
@@ -145,6 +151,7 @@ export default function RootCause() {
       }
       return { ...prev, countermeasures: cms };
     });
+    
   };
 
   const saveRootAndNext = async (e) => {
@@ -177,6 +184,7 @@ export default function RootCause() {
       await refreshPsc(selected.id);
       // switch to countermeasure tab
       setActiveTab('cm');
+      
     } catch (err) {
       console.error('saveRootAndNext failed', err);
       alert('Failed to save root cause. See console.');
@@ -192,6 +200,8 @@ export default function RootCause() {
     if (!last || !(last.description || '').toString().trim()) return alert('Please enter Countermeasure description.');
     // targetDate and type are expected; validate targetDate
     if (!last.targetDate) return alert('Please select Target Date for the countermeasure.');
+    const newEntry = {description: last.description, targetDate: last.targetDate, type: last.type}; // if object: {...text} to create a copy
+    setRows((prevRows) => [...prevRows, newEntry]);
 
     const user = JSON.parse(localStorage.getItem('dcmsUser') || '{}');
     const payload = {
@@ -205,7 +215,8 @@ export default function RootCause() {
       await axios.post(`/api/psc/${selected.id}/countermeasure`, payload);
       // refresh to load canonical CMs and ids
       await refreshPsc(selected.id);
-      // ensure there's always an empty input row available for next add
+      setText('');
+      setRows((prevRows) => [...prevRows, newEntry]);
       setRoot(prev => {
         const updated = (prev.countermeasures || []).map(c => ({ ...c }));
         // push empty if last after refresh is filled
@@ -360,7 +371,8 @@ export default function RootCause() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((psc) => (
+              {filtered.length > 0 ? (
+              filtered.map((psc) => (
                 <tr key={psc.id}>
                   <td>
                     <button className="btn btn-link p-0" onClick={() => handleSelect(psc)}>{psc.problemNumber || psc.problem_number}</button>
@@ -373,7 +385,17 @@ export default function RootCause() {
                   <td>{psc.shortDescription || psc.short_description}</td>
                   <td>{psc.status}</td>
                 </tr>
-              ))}
+              ))
+            ) : (
+              <tr>
+              <td colSpan="8" className="text-center">
+      <div className="spinner-border text-primary" role="status">
+        <span className="sr-only">Loading...</span>
+      </div>
+      </td>
+      </tr>
+            )
+              }
             </tbody>
           </table>
         </div>
@@ -422,9 +444,14 @@ export default function RootCause() {
     return (
       <div className="card full-height">
         <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
-          <h4>PSC: {selected.problem_number || selected.problemNumber}</h4>
-          <div className="mb-2"><strong>Short Desc:</strong> {selected.short_description || selected.shortDescription}</div>
-
+       <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h4>PSC: {selected.problem_number || selected.problemNumber}</h4>
+        <div className="mb-2"><strong>Short Desc:</strong> {selected.short_description || selected.shortDescription}</div>
+    </div>
+    
+    <button type="button" className="btn btn-danger" onClick={() => { setShowForm(false); setShowPreview(true); }}>Back</button>
+</div>
           <Tabs activeKey={activeTab} onSelect={(k) => setActiveTab(k)} className="mb-3">
             {showRootTab && (
               <Tab eventKey="root" title="Root Cause Analysis">
@@ -449,7 +476,7 @@ export default function RootCause() {
                   </div>
 
                   <div className="fixed-card-footer text-right p-3 border-top bg-white">
-                    <button type="button" className="btn btn-secondary mr-2" onClick={() => { setShowForm(false); setShowPreview(true); }}>Cancel</button>
+                   
                     <button type="button" className="btn btn-primary ml-2" onClick={saveRootAndNext}>Save Root Cause & Next</button>
                   </div>
                 </form>
@@ -458,6 +485,31 @@ export default function RootCause() {
 
             <Tab eventKey="cm" title="Countermeasure & Effect Check">
               <h5><b>Countermeasure History</b></h5>
+               <div>
+                <h5><b>Add Countermeasure</b></h5>
+                <div className='form-row'>
+                <label>Description</label>
+                <textarea className="form-control" value={latest.description || ''} onChange={(e) => handleCountermeasureChange('description', e.target.value)} rows={3} />
+                               
+
+                </div>
+                <div className='form-row'>
+                  <div className='col-md-6'>
+                    <label className="mt-2">Target Date</label>
+                    <input type="date" className="form-control" value={latest.targetDate || ''} onChange={(e) => handleCountermeasureChange('targetDate', e.target.value)} />
+</div>
+                  <div className='col-md-6'>
+                <label className="mt-2">Type</label>
+                <input className="form-control" readOnly value={latest.type || ''} />
+</div>
+</div>
+                <div className="mt-3">
+                  {/* Only one "Save Countermeasure" button per requirement */}
+                  <button type="button" className="btn btn-primary" onClick={saveCountermeasure}>Save Countermeasure</button>
+
+                  <small className="form-text text-muted mt-2 d-block">Click "Save Countermeasure" to persist to history. Use "Comments" to add/view comments.</small>
+                </div>
+              </div>
 
               <div className="table-responsive mb-3">
                 <table className="table table-bordered">
@@ -470,41 +522,37 @@ export default function RootCause() {
                       <th>Comments</th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {countermeasures.length ? countermeasures.map((cm, idx) => (
-                      <tr key={cm.id || idx}>
-                        <td>{cm.description}</td>
-                        <td>{cm.targetDate}</td>
-                        <td>{cm.type}</td>
-                        <td>{badgeForStatus(cm.cm_status)}</td>
-                        <td><button type="button" className="btn btn-link p-0" onClick={() => openCommentsDialog(cm)}>Comments</button></td>
-                      </tr>
-                    )) : (
-                      <tr><td colSpan={5} className="text-center">No countermeasures yet</td></tr>
-                    )}
-                  </tbody>
+                 <tbody>
+  {countermeasures.filter(cm => cm.id).length ? (
+    countermeasures.filter(cm => cm.id).map((cm, idx) => (
+      <tr key={cm.id || idx + 1}>
+        <td>{cm.description}</td>
+        <td>{cm.targetDate}</td>
+        <td>{cm.type}</td>
+        <td>{badgeForStatus(cm.cm_status)}</td>
+        <td>
+          <button
+            type="button"
+            className="btn btn-link p-0"
+            onClick={() => openCommentsDialog(cm)}
+          >
+            Comments
+          </button>
+        </td>
+      </tr>
+    ))
+  ) : (
+    <tr>
+      <td colSpan={5} className="text-center">No countermeasures yet</td>
+    </tr>
+  )}
+</tbody>
+
                 </table>
               </div>
 
-              <div className="border p-3">
-                <h5><b>Add Countermeasure</b></h5>
-
-                <label>Description</label>
-                <textarea className="form-control" value={latest.description || ''} onChange={(e) => handleCountermeasureChange('description', e.target.value)} rows={3} />
-
-                <label className="mt-2">Target Date</label>
-                <input type="date" className="form-control" value={latest.targetDate || ''} onChange={(e) => handleCountermeasureChange('targetDate', e.target.value)} />
-
-                <label className="mt-2">Type</label>
-                <input className="form-control" readOnly value={latest.type || ''} />
-
-                <div className="mt-3">
-                  {/* Only one "Save Countermeasure" button per requirement */}
-                  <button type="button" className="btn btn-primary" onClick={saveCountermeasure}>Save Countermeasure</button>
-                  <small className="form-text text-muted mt-2 d-block">Click "Save Countermeasure" to persist to history. Use "Comments" to add/view comments.</small>
-                </div>
-              </div>
-            </Tab>
+             
+   </Tab>
           </Tabs>
         </div>
       </div>

@@ -1,15 +1,24 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from "react-router-dom";
 import { loadEscalations, computeEscalationForPsc, hoursSince, isFieldEditable } from './pscPermissions';
 import axios from 'axios';
+import ProblemCard from './ProblemCard.js';
 
-export default function PSCFullView({ psc = {}, actions = null, onClose = () => {} }) {
+
+export default function PSCFullView({ psc = {}, actions = null, onClose = () => {}, onOpenEffectCheck = null, openPrint = () => { window.location.href = '/ProblemCard'; } }) {
   const p = psc || {};
   const [escalations, setEscalations] = useState([]);
   const [activeEsc, setActiveEsc] = useState(null);
   const [elapsedHours, setElapsedHours] = useState(0);
+  const [visible, setVisible] = useState(null); 
+  const [selected, setSelected] = useState(null);
+  const [showPrint, setShowPrint] = useState(false);
   const [tab, setTab] = useState('details'); // 'details' or 'countermeasures'
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
   const [selectedCmIndex, setSelectedCmIndex] = useState(-1);
   const [commentsDialog, setCommentsDialog] = useState({ show: false, cmId: null });
+  const [showProblemCard, setShowProblemCard] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -65,6 +74,34 @@ export default function PSCFullView({ psc = {}, actions = null, onClose = () => 
     }
   }
 
+  // Identify a single target countermeasure for review (priority rules):
+  // 1) The most recent CM with status 'For Validation' (case-insensitive).
+  // 2) Fallback: the most recent 'Pending' CM that contains comments/counter_comments (indicates it was commented on).
+  // If multiple 'For Validation' are found -> treat as error (multiple) and disable review button.
+  const findTargetCountermeasure = () => {
+    const list = Array.isArray(countermeasuresList) ? countermeasuresList.slice() : [];
+    // newest first: assume array is in chronological order, use reversed order to pick most recent
+    const newestFirst = list.slice().reverse();
+    const forValidation = newestFirst.filter(cm => ((cm.cm_status || cm.status || '') || '').toString().toLowerCase() === 'for validation');
+    if (forValidation.length === 1) return { cm: forValidation[0], multiple: false };
+    if (forValidation.length > 1) return { cm: null, multiple: true };
+
+    // fallback: most recent pending with comments
+    const pendingWithComments = newestFirst.filter(cm => {
+      const s = ((cm.cm_status || cm.status || '') || '').toString().toLowerCase();
+      if (s !== 'pending') return false;
+      const commentsPresent = ((cm.counter_comments || cm.comments || cm.actionRemarks || '') || '').toString().trim() !== '';
+      return commentsPresent;
+    });
+    if (pendingWithComments.length > 0) return { cm: pendingWithComments[0], multiple: false };
+
+    return { cm: null, multiple: false };
+  };
+
+  const targetInfo = findTargetCountermeasure();
+  const targetCm = targetInfo.cm;
+
+
   // corrective action display
   let corrective = p.corrective_action || p.correctiveAction || p.corrective_action || {};
   if (typeof corrective === 'string') {
@@ -78,6 +115,15 @@ export default function PSCFullView({ psc = {}, actions = null, onClose = () => 
       return editable ? { border: '1px', padding: 6 } : { border: '1px solid transparent', padding: 6,  };
     } catch (e) { return { border: '1px solid transparent', padding: 6 }; }
   };
+   const handlePrint = () => {
+    console.log("Print button clicked");
+   
+setShowProblemCard(true);
+  };
+
+    if (showProblemCard) {
+    return <ProblemCard psc={psc} activeEsc={activeEsc} />
+  }
 
   const assignedDept = (p.corrective_action?.corrective_assign_to || p.correctiveAction?.corrective_assign_to || p.corrective_assign_to || '');
   const userDept = user?.dept_id || user?.department || user?.dept_name || '';
@@ -106,10 +152,40 @@ export default function PSCFullView({ psc = {}, actions = null, onClose = () => 
             >
               <i className="mdi mdi-arrow-left"></i> Back
             </button>
+
+            <button type="button" onClick={handlePrint}>
+        Print
+      </button>
             {/* --- Stage-based actions --- */}
             {canSeeCorrective && actions && actions.type?.name === 'CorrectiveAction' && actions}
             {canSeeRootCause && actions && actions.type?.name === 'RootCause' && actions}
-            {canSeeEffectCheck && actions && actions.type?.name === 'EffectCheck' && actions}
+            {canSeeEffectCheck && (
+              <div>
+                {/* Single review button that forwards only the target CM id (if available) */}
+                <button
+                  className="btn btn-primary mr-2"
+                  disabled={!targetCm || targetInfo.multiple}
+                  onClick={() => {
+                    if (!targetCm) return;
+                    const cmId = targetCm.id || targetCm.countermeasure_id || targetCm.id_countermeasure || null;
+                    if (onOpenEffectCheck) {
+                      try { onOpenEffectCheck(p, cmId); } catch (e) { console.error('onOpenEffectCheck error', e); }
+                      return;
+                    }
+                    // fallback: store and navigate
+                    try {
+                      localStorage.setItem('openPsc', JSON.stringify(p));
+                      localStorage.setItem('openCmId', cmId);
+                      window.location.href = '/effectcheck';
+                    } catch (e) {
+                      console.error('failed to open effect check', e);
+                    }
+                  }}
+                >
+                  {targetInfo.multiple ? 'Multiple CMs to review' : (targetCm ? `Review CM ${targetCm.id || targetCm.countermeasure_id || ''}` : 'No CM to review')}
+                </button>
+              </div>
+            )}
             {/* fallback: show actions if not a form */}
             {!canSeeCorrective && !canSeeRootCause && !canSeeEffectCheck && actions}
           </div>
@@ -117,143 +193,182 @@ export default function PSCFullView({ psc = {}, actions = null, onClose = () => 
       </div>
 
 
-      
-            <div className='card'>
-              <div className='card-body'>
-                <div className='row'>
-                  <div className='col-md-12'>
-                    <div className='form-row'>
-                      <div className='form-group col-md-2'><label>Problem No</label><div>{field('problem_number','problemNumber')}</div></div>
-                      <div className='form-group col-md-2'><label>Name</label><div>{field('initiator_name','initiatorName')}</div></div>
-                      <div className='form-group col-md-2'><label>Date</label><div>{p.date ? new Date(p.date).toLocaleDateString('en-CA') : ''}</div></div>
-                      <div className='form-group col-md-2'><label>Shift</label><div>{p.shift}</div></div>
-                      <div className='form-group col-md-2'></div>
-                       <div className='col-md-2 d-flex flex-column justify-content-end' style={{ gap: '6px' }}>
-                  <div style={{ gap: '6px' }}>
-          <span className="badge badge-info" style={{ fontSize: 13 }}>
-            Stage: {p.ticket_stage || p.ticketStage || 'N/A'}
-          </span>
-      <div style={{ gap: '6px' }}>      
-           <span className="badge badge-primary" style={{ fontSize: 13 }}>
-            Status: {p.status || 'N/A'}
-          </span>
-          </div>
-         <div style={{ gap: '6px' }}>      
-      
-          <span className="badge badge-danger" style={{ fontSize: 13 }}>
-            Escalated: {activeEsc?.escalation_name || 'Escalated'}
-          </span>
-          </div>
-          </div>
-        </div>
-                      </div>
-      
-                      <div className='form-row'>
-                      <div className='form-group col-md-2'><label>Line</label><div>{p.line_code || p.lineCode || p.line}</div></div>
-                      <div className='form-group col-md-2'><label>Qty Affected:</label><div>{p.qty_affected || p.qtyAffected || ''}</div></div>
-                      <div className='form-group col-md-2'><label>Part:</label> <div>{p.part_affected || p.partAffected || ''}</div></div>
-                      <div className='form-group col-md-2'><label>Supplier:</label> <div>{p.supplier || ''}</div></div>
-                      
-      </div>
-      
-                    <div className='form-group mt-2'><label>Problem Description</label>
-                      <div style={{ minHeight: 60, ...editableHint('problem_description') }}>{p.problem_description || p.problemDescription}</div>
-                    </div>
-      
-                    <div className="form-group mt-3">
-                      <label>Containment Action</label>
-                      <div style={{ border: '1px solid #ddd', padding: 8 }}>
-                        <div><strong>Containment Action:</strong> {p.corrective_action?.initialContainmentAction || p.correctiveAction?.initialContainmentAction || ''}</div>
-                        <div><strong>Done By:</strong> {p.corrective_action?.doneBy || p.correctiveAction?.doneBy || ''}</div>
-                        <div><strong>Assign To:</strong> {p.corrective_action?.assignTo || p.correctiveAction?.assignTo || p.corrective_assign_to || ''}</div>
-                        <div><strong>Remarks:</strong> {p.corrective_action?.remarks || p.correctiveAction?.remarks || ''}</div>
-                      </div>
-                    </div>
-      
-                    <div className='form-group mt-3'>
-                      <label>Root Cause Analysis / 5W</label>
-                      <div style={{ border: '1px solid #ddd', padding: 8, minHeight: 120 }}>
-                        {whyList.map((w, i) => (
-                          <div key={i} style={editableHint(`why${i+1}`)}><strong>Why {i+1}:</strong> {w || ''}</div>
-                        ))}
-                      </div>
-                    </div>
-      
-                    <div className='form-group mt-3'>
-                      <label>Planned countermeasure / Description</label>
-                      <div style={{ border: '1px solid #ddd', padding: 8 }}>
-                       <div className="table-responsive mt-3">
-        <table className="table table-bordered table-hover">
-          <thead className="thead-light">
-            <tr style={{ fontSize: '14px' }}>
-              <th>#</th>
-              <th>Countermeasure</th>
-              <th>Target Date</th>
-              <th>Type</th>
-              <th>Comments</th>
-              <th>Status</th>
-              <th>Rejection Details</th>
-              <th>History</th>
-            </tr>
-          </thead>
-          <tbody>
-            {countermeasuresList.length > 0 ? (
-              countermeasuresList
-                .slice() // clone array
-                .reverse() // newest first
-                .map((cm, i) => (
-                  <tr key={cm.id || i}>
-                    <td>{countermeasuresList.length - i}</td>
-                    <td>{cm.countermeasure || cm.description}</td>
-                    <td>{cm.targetDate|| cm.counter_target_date || ''}</td>
-                    <td>{cm.type|| cm.counter_type || ''}</td>
-                    <td>{cm.counter_comments || cm.comments || cm.actionRemarks || ''}</td>
-                    <td>{cm.status || cm.cm_status || 'Pending'}</td>
-                   <td> {((cm.status || cm.cm_status) === 'Rejected') ? (cm.rejection_reason || cm.rejectionReason): ''}</td>
-                   <td>
-                     <button className="btn btn-sm btn-outline-primary" onClick={() => setCommentsDialog({ show: true, cmId: cm.id })}>
-                       View Comments
-                     </button>
-                   </td>
-                  </tr>
-                ))
-            ) : (
-              <tr>
-                <td colSpan="10" className="text-center text-muted">
-                  No countermeasures submitted yet.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-      
-                      </div>
-                    </div>
-      
-                    <hr />
-                    <div className='form-group'>
-                      <label>Effectiveness check / Description</label>
-                      <div style={{ border: '1px solid #ddd', padding: 8 }}>
-                          <div style={editableHint('effectiveness_checked')}><strong>Checked:</strong> {p.effectiveness_checked || p.effectivenessCheck || ''}</div>
-                          <div style={editableHint('effectiveness_date')}><strong>Date:</strong> {p.effectiveness_date || p.effectivenessDate || ''}</div>
-                          <div style={editableHint('effectiveness_remarks')}><strong>Remarks:</strong> {p.effectiveness_remarks || p.effectivenessRemarks || ''}</div>
-                      </div>
-                    </div>
-      
-                  </div>
-      
-                  
+      <div className='card'>
+        <div className='card-body'>
+          <div className='row'>
+            <div className='col-md-12'>
+              <div className='form-row'>
+                <div className='form-group col-md-2'><label>Problem No</label><div>{field('problem_number','problemNumber')}</div></div>
+                <div className='form-group col-md-2'><label>Name</label><div>{field('initiator_name','initiatorName')}</div></div>
+                <div className='form-group col-md-2'><label>Date</label><div>{p.date ? new Date(p.date).toLocaleDateString('en-CA') : ''}</div></div>
+                <div className='form-group col-md-2'><label>Shift</label><div>{p.shift}</div></div>
+                <div className='form-group col-md-2'></div>
+                 <div className='col-md-2 d-flex flex-column justify-content-end' style={{ gap: '6px' }}>
+            <div style={{ gap: '6px' }}>
+    <span className="badge badge-info" style={{ fontSize: 13 }}>
+      Stage: {p.ticket_stage || p.ticketStage || 'N/A'}
+    </span>
+<div style={{ gap: '6px' }}>      
+     <span className="badge badge-primary" style={{ fontSize: 13 }}>
+      Status: {p.status || 'N/A'}
+    </span>
+    </div>
+   <div style={{ gap: '6px' }}>      
+
+    <span className="badge badge-danger" style={{ fontSize: 13 }}>
+      Escalated: {activeEsc?.escalation_name || 'Escalated'}
+    </span>
+    </div>
+    </div>
+  </div>
+
+
+                </div>
+                <div className='form-row'>
+                <div className='form-group col-md-2'><label>Line</label><div>{p.line_code || p.lineCode || p.line}</div></div>
+                <div className='form-group col-md-2'><label>Qty Affected:</label><div>{p.qty_affected || p.qtyAffected || ''}</div></div>
+                <div className='form-group col-md-2'><label>Part:</label> <div>{p.part_affected || p.partAffected || ''}</div></div>
+                <div className='form-group col-md-2'><label>Supplier:</label> <div>{p.supplier || ''}</div></div>
+                
+</div>
+          
+
+              <div className='form-group mt-2'><label>Problem Description</label>
+                <div style={{ minHeight: 60, ...editableHint('problem_description') }}>{p.problem_description || p.problemDescription}</div>
+              </div>
+              {/* Corrective Action Details */}
+              <div className="form-group mt-3">
+                <label>Containment Action</label>
+                <div style={{ border: '1px solid #ddd', padding: 8 }}>
+                  <div><strong>Containment Action:</strong> {corrective.initialContainmentAction || corrective.action_taken || ''}</div>
+                  <div><strong>Done By:</strong> {corrective.doneBy || corrective.done_by || ''}</div>
+                  <div><strong>Assign To:</strong> {corrective.assignTo || corrective.corrective_assign_to || ''}</div>
+                  <div><strong>Remarks:</strong> {corrective.remarks || corrective.corrective_comments || ''}</div>
                 </div>
               </div>
+
+              <div className='form-group mt-3'>
+                <label>Root Cause Analysis / 5W</label>
+                <div style={{ border: '1px solid #ddd', padding: 8, minHeight: 120 }}>
+                  {whyList.map((w, i) => (
+                    <div key={i} style={editableHint(`why${i+1}`)}><strong>Why {i+1}:</strong> {w || ''}</div>
+                  ))}
+                </div>
+              </div>
+
+              <div className='form-group mt-3'>
+                <label>Planned countermeasure / Description</label>
+                <div style={{ border: '1px solid #ddd', padding: 8 }}>
+                 <div className="table-responsive mt-3">
+  <table className="table table-bordered table-hover">
+    <thead className="thead-light">
+      <tr style={{ fontSize: '14px' }}>
+        <th>#</th>
+        <th>Countermeasure</th>
+        <th>Target Date</th>
+        <th>Type</th>
+        <th>Comments</th>
+        <th>Status</th>
+        <th>Rejection Details</th>
+      </tr>
+    </thead>
+    <tbody>
+      {countermeasuresList.length > 0 ? (
+        countermeasuresList
+          .slice() // clone array
+          .reverse() // newest first
+          .map((cm, i) => (
+            <tr key={i}>
+              <td>{countermeasuresList.length - i}</td>
+              <td>{cm.countermeasure || cm.description}</td>
+              <td>{cm.targetDate|| ''}</td>
+              <td>{cm.type|| ''}</td>
+              <td>{cm.counter_comments || ''}</td>
+              <td>{cm.status || 'Pending'}</td>
+             <td> {cm.status === 'Rejected' ? (cm.rejection_reason): ''}</td>
+            </tr>
+          ))
+      ) : (
+        <tr>
+          <td colSpan="10" className="text-center text-muted">
+            No countermeasures submitted yet.
+          </td>
+        </tr>
+      )}
+    </tbody>
+  </table>
+</div>
+
+                </div>
+              </div>
+
+              <hr />
+              <div className='form-group'>
+                <label>Effectiveness check / Description</label>
+                <div style={{ border: '1px solid #ddd', padding: 8 }}>
+                    <div style={editableHint('effectiveness_checked')}><strong>Checked:</strong> {p.effectiveness_checked || p.effectivenessCheck || ''}</div>
+                    <div style={editableHint('effectiveness_date')}><strong>Date:</strong> {p.effectiveness_date || p.effectivenessDate || ''}</div>
+                    <div style={editableHint('effectiveness_remarks')}><strong>Remarks:</strong> {p.effectiveness_remarks || p.effectivenessRemarks || ''}</div>
+                </div>
+              </div>
+
             </div>
-      
-            {/* Reusable comments dialog */}
-            <CountermeasureComments
-              cmId={commentsDialog.cmId}
-              show={commentsDialog.show}
-              onClose={() => setCommentsDialog({ show: false, cmId: null })}
-            />
+
+            
+          </div>
+        </div>
+      </div>
+
+      {/* Rejection Modal 
+     {showRejectModal && (
+        <div className="modal show d-block" tabIndex="-1" role="dialog" style={{backgroundColor: 'rgba(0,0,0,0.5)'}}>
+          <div className="modal-dialog" role="document">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Reject Countermeasure</h5>
+                <button type="button" className="close" onClick={() => {
+                  setShowRejectModal(false);
+                  setRejectReason('');
+                }}>
+                  <span>&times;</span>
+                </button>
+              </div>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label>Reason for Rejection:</label>
+                  <textarea
+                    className="form-control"
+                    rows="3"
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    placeholder="Please provide a reason for rejection..."
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    setShowRejectModal(false);
+                    setRejectReason('');
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  onClick={handleConfirmReject}
+                  disabled={!rejectReason.trim()}
+                >
+                  Reject
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}*/}
     </div>
   );
 }

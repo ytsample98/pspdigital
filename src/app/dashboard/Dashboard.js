@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import '../../assets/styles/YTDMetricCards.css';
 import PSPCompetencyTable from './PSPCompetencyTable';
+import PSPChart from './PSPChart';
 
 const YTDMetricCards = () => {
   const [metrics, setMetrics] = useState({
@@ -8,7 +9,6 @@ const YTDMetricCards = () => {
     cardsClosed: 195,
     closurePercent: ''
   });
-
   useEffect(() => {
     // Fetch PSP data from backend API
     const fetchMetrics = async () => {
@@ -56,6 +56,8 @@ const YTDMetricCards = () => {
     <div className="report-section">
       <PSPCompetencyTable />
     </div>
+
+     
 
   </div>
 );

@@ -6,7 +6,7 @@ import UserCreation from './UserCreation';
 import UserType from './UserType';
 import UserResponsibility from './UserResponsibility';
 import EscalationMatrix from './EscalationMatrix';
-import Notifications from './Notifications';
+import notify from './Notifications';
 
 const AdminMediaList = () => {
   const [visible, setVisible] = useState(null); // 'masters' | 'organization' | 'user'
@@ -20,14 +20,6 @@ const AdminMediaList = () => {
             <div style={{padding:16}}>
               <i className={`mdi mdi-domain mdi-48px mb-3`}></i>
               <h5>Business Group</h5>
-            </div>
-          </div>
-        </div>
-        <div className="col-md-4 mb-3">
-          <div className={`media-card card text-center p-4 shadow-sm ${visible==='notifications' ? 'border-primary' : ''}`} style={{cursor:'pointer'}} onClick={() => setVisible(visible==='notifications' ? null : 'notifications')}>
-            <div style={{padding:16}}>
-              <i className={`mdi mdi-bell mdi-48px mb-3`}></i>
-              <h5>Notifications</h5>
             </div>
           </div>
         </div>
@@ -86,7 +78,7 @@ const AdminMediaList = () => {
   {visible === 'usertype' && <UserType />}
       {visible === 'userresp' && <UserResponsibility />}
       {visible === 'escalation' && <EscalationMatrix />}
-      {visible === 'notifications' && <Notifications />}
+      {/* {visible === 'notifications' && <Notifications />} */}
       </div>
 
     </div>

@@ -1,8 +1,16 @@
 import React, { Component } from 'react';
 import { Dropdown } from 'react-bootstrap';
+import { FaBell } from "react-icons/fa6";
 
 class Navbar extends Component {
-  state = { user: null };
+  //state = { user: null };
+  state = {
+    user: null,
+    notifications: [],
+    showNotifications: false,
+  };
+
+   
   componentDidMount() {
     // Read authenticated user from localStorage (set by Login.js)
     try {
@@ -25,10 +33,17 @@ class Navbar extends Component {
       }
     };
     window.addEventListener('storage', this._onStorage);
+    window.addEventListener("psc-notification", (e) => {
+  this.addNotification(e.detail);
+});
+
   }
+
+  
 
   componentWillUnmount() {
     if (this._onStorage) window.removeEventListener('storage', this._onStorage);
+     window.removeEventListener("psc-notification", this.addNotification);
   }
 
   handleLogout = async () => {
@@ -45,13 +60,38 @@ class Navbar extends Component {
   toggleRightSidebar() {
     document.querySelector('.right-sidebar').classList.toggle('open');
   }
+// addNotification = (message) => {
+//     this.setState((prev) => ({
+//       notifications: [...prev.notifications, { id: Date.now(), message }],
+//     }));
+//   };
+addNotification = (cardId, message) => {
+    this.setState((prev) => ({
+      // notifications: [...prev.notifications, { id: Date.now(), message }],
+      notifications: [...prev.notifications, { id: Date.now(), cardId, message }],
+    }));
+  };
+
+  toggleNotifications = () => {
+    this.setState((prev) => ({
+      showNotifications: !prev.showNotifications,
+      // remove count when opened
+      notifications: prev.showNotifications ? prev.notifications : [],
+    }));
+  };
+ 
 
   render() {
-    const { user } = this.state;
+    //const { user } = this.state;
+    const { user, notifications, showNotifications } = this.state;
+    const notificationCount = notifications.length;
     const userName =
       (user && (user.username || user.name || user.displayName || user.usermail || user.email)) ||
       'User';
     const initial = userName ? userName.charAt(0).toUpperCase() : 'U';
+    const sendNotification = (message) => {
+  window.dispatchEvent(new CustomEvent("psc-notification", { detail: message }));
+};
 
     return (
       <nav className="navbar col-lg-12 col-12 p-lg-0 fixed-top d-flex flex-row">
@@ -91,7 +131,108 @@ class Navbar extends Component {
 
           {/* Right section */}
           <ul className="navbar-nav navbar-nav-right">
+ {/* Notification Icon */}
+<li
+  className="nav-item position-relative mx-3"
+  style={{ cursor: "pointer" }}
+>
+  {/* Bell icon */}
+  <FaBell size={22} color="#333" onClick={() => this.setState({ showNotifications: true ,notificationCount:true})} />
 
+  {/* Count badge */}
+  {notificationCount > 0 && (
+    <span
+      style={{
+        position: "absolute",
+        top: "-4px",
+        right: "-4px",
+        backgroundColor: "red",
+        color: "white",
+        borderRadius: "50%",
+        width: "18px",
+        height: "18px",
+        fontSize: "11px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+    {notificationCount}
+    </span>
+  )}
+
+  {/* Notification Dropdown */}
+  {showNotifications && (
+    <div
+      style={{
+        position: "absolute",
+        right: 0,
+        top: "30px",
+        background: "#fff",
+        border: "1px solid #ddd",
+        borderRadius: "6px",
+        width: "240px",
+        zIndex: 1000,
+        boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+      }}
+    >
+      {/* Header with close (X) button */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "8px 12px",
+          borderBottom: "1px solid #eee",
+          fontWeight: "bold",
+          fontSize: "14px",
+        }}
+      >
+        Notifications
+        <span
+          style={{
+            cursor: "pointer",
+            color: "#888",
+            fontSize: "18px",
+            lineHeight: "14px",
+          }}
+          onClick={() =>
+            this.setState({ showNotifications: false, notificationCount: 0 })
+          }
+        >
+          ×
+        </span>
+      </div>
+
+      {/* Notification list */}
+      {notifications.length === 0 ? (
+        <div
+          style={{
+            padding: "10px",
+            fontSize: "13px",
+            color: "#555",
+            textAlign: "center",
+          }}
+        >
+          No new notifications
+        </div>
+      ) : (
+        this.state.notifications.map((n) => (
+          <div
+            key={n.id}
+            style={{
+              padding: "8px 12px",
+              borderBottom: "1px solid #eee",
+              fontSize: "13px",
+            }}
+          >
+            {n.message}
+          </div>
+        ))
+      )}
+    </div>
+  )}
+</li>
             {/* Company Name */}
             <li className="nav-item nav-profile border-0 d-flex align-items-center">
               <span style={{ fontWeight: 600, fontSize: 18, color: "#222" }}>
