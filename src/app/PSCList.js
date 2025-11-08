@@ -345,12 +345,12 @@ const handleSubmit = async (e) => {
           
           </div>
           <div className='form-row'>
-            
-              <div className='form-group col-md-3'>
+           <div className='form-group col-md-3'>
   <label>Problem Type</label>
   <select
     className='form-control'
-    value={form.problem_type || ''}
+    name='problem_type'
+    value={form.problem_type}
     onChange={handleChange}
     required
   >

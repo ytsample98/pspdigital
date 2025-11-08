@@ -1,6 +1,9 @@
 import React, { Component } from 'react';
 import { Dropdown } from 'react-bootstrap';
 import { FaBell } from "react-icons/fa6";
+import { FaSignOutAlt} from "react-icons/fa"
+import { Modal, Button } from 'react-bootstrap';
+
 
 class Navbar extends Component {
   //state = { user: null };
@@ -8,6 +11,7 @@ class Navbar extends Component {
     user: null,
     notifications: [],
     showNotifications: false,
+    showProfile: false,
   };
 
    
@@ -93,7 +97,9 @@ addNotification = (cardId, message) => {
   window.dispatchEvent(new CustomEvent("psc-notification", { detail: message }));
 };
 
+
     return (
+      
       <nav className="navbar col-lg-12 col-12 p-lg-0 fixed-top d-flex flex-row">
         <div className="navbar-menu-wrapper d-flex align-items-center justify-content-between">
           <a
@@ -116,14 +122,17 @@ addNotification = (cardId, message) => {
             <i className="mdi mdi-menu"></i>
           </button>
 
-          
-<div className="d-none d-md-block" style={{ marginLeft: 16 }}>
-      <img
-        src={require("../../assets/images/Mahle.jpg")}
-        alt="Custom"
-        style={{ maxHeight: 35 }}
-      />
-    </div>
+ <div className="d-none d-md-flex align-items-center" style={{ marginLeft: 16 }}>
+  <img
+    src={require("../../assets/images/Mahle.jpg")}
+    alt="Custom"
+    style={{ maxHeight: 35 }}
+  />
+  <span style={{ marginLeft: 8, fontWeight: 600, fontSize: 16, color: '#333' }}>
+    Shop Floor Management (PSP)
+  </span>
+</div>
+
 
 
           {/* Search */}
@@ -244,38 +253,37 @@ addNotification = (cardId, message) => {
 
             {/* User Profile Dropdown or Sign In link */}
             {user ? (
-              <Dropdown align="end" className="nav-item nav-profile border-0">
-                <Dropdown.Toggle
-                  variant="light"
-                  id="dropdown-user"
-                  className="d-flex align-items-center border-0 bg-transparent"
-                >
-                  {/* Circle avatar with initial */}
-                  <div
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: '50%',
-                      backgroundColor: '#007bff',
-                      color: '#fff',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontWeight: 'bold',
-                    }}
-                  >
-                    {initial}
-                  </div>
-                  <div style={{ marginLeft: 8, fontWeight: 600, color: '#222' }}>
-                    {userName}
-                  </div>
-                </Dropdown.Toggle>
+  <li className="nav-item nav-profile border-0 d-flex align-items-center">
+    <div
+      style={{
+        width: 40,
+        height: 40,
+        borderRadius: "50%",
+        backgroundColor: "#007bff",
+        color: "#fff",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontWeight: "bold",
+        cursor: "pointer"
+      }}
+      onClick={() => this.setState({ showProfile: true })}
+    >
+      {initial}
+    </div>
+    <div style={{ marginLeft: 8, fontWeight: 600, color: "#222" }}>
+      {userName}
+    </div>
+    <FaSignOutAlt
+      size={20}
+      color="#333"
+      style={{ marginLeft: 12, cursor: "pointer" }}
+      onClick={this.handleLogout}
+      title="Sign Out"
+    />
+  </li>
+) : (
 
-                <Dropdown.Menu>
-                  <Dropdown.Item onClick={this.handleLogout}>Sign Out</Dropdown.Item>
-                </Dropdown.Menu>
-              </Dropdown>
-            ) : (
               <li className="nav-item nav-profile border-0 d-flex align-items-center">
                 <a href="/user-pages/login" className="btn btn-outline-primary btn-sm">
                   Sign In
@@ -293,9 +301,45 @@ addNotification = (cardId, message) => {
             <span className="mdi mdi-menu"></span>
           </button>
         </div>
+        
+<Modal show={this.state.showProfile} onHide={() => this.setState({ showProfile: false })} centered>
+  <Modal.Header closeButton>
+    <Modal.Title>Profile</Modal.Title>
+  </Modal.Header>
+  <Modal.Body>
+    {user && (
+      <>
+        <div className="form-group mb-3">
+          <label>Emp Code</label>
+          <input type="text" className="form-control" value={user.empcode || ''} readOnly />
+        </div>
+        <div className="form-group mb-3">
+          <label>User Name</label>
+          <input type="text" className="form-control" value={user.username || ''} readOnly />
+        </div>
+        <div className="form-group mb-3">
+          <label>Department</label>
+          <input type="text" className="form-control" value={user.department || ''} readOnly />
+        </div>
+        <div className="form-group mb-3">
+          <label>Mail</label>
+          <input type="text" className="form-control" value={user.email || ''} readOnly />
+        </div>
+      </>
+    )}
+  </Modal.Body>
+  <Modal.Footer>
+    <Button variant="secondary" onClick={() => this.setState({ showProfile: false })}>
+      Close
+    </Button>
+  </Modal.Footer>
+</Modal>
       </nav>
+      
     );
+    
   }
+  
 }
 
 export default Navbar;

@@ -139,50 +139,20 @@ onRouteChanged() {
     return (
       <nav className="sidebar sidebar-offcanvas" id="sidebar">
        <div className="sidebar-brand-wrapper d-flex flex-column align-items-center justify-content-center" style={{ height: 120 }}>
-  {this.state.businessGroup && (
-    <>
-      {/* Sidebar collapsed: show shortName as text */}
-      {document.body.classList.contains('sidebar-icon-only') ? (
-        <span
-          style={{
-            fontWeight: 700,
-            fontSize: 24,
-            color: '#fff',
-            letterSpacing: 1,
-            textAlign: 'center'
-          }}
-        >
-          {this.state.businessGroup.shortName || 'Co'}
-        </span>
-      ) : (
-        // Sidebar expanded: show logo and shortName
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {this.state.businessGroup.logoUrl && (
-            <img
-              src={this.state.businessGroup.logoUrl}
-              alt="logo"
-              style={{
-                height: 100,
-                width: 100,
-                objectFit: 'contain',
-                borderRadius: 8
-              }}
-            />
-          )}
-          <span
-            style={{
-              fontWeight: 700,
-              fontSize: 20,
-              color: '#fff',
-              letterSpacing: 1
-            }}
-          >
-            {this.state.businessGroup.shortName}
-          </span>
-        </div>
-      )}
-    </>
+<div className="sidebar-brand-wrapper d-flex flex-column align-items-center justify-content-center" style={{ height: 120 }}>
+  {document.body.classList.contains('sidebar-icon-only') ? (
+    <span style={{ fontWeight: 700, fontSize: 24, color: '#fff' }}>WP</span>
+  ) : (
+    <div style={{ display: 'flex', alignItems: 'center', flexDirection: 'column', gap: 8 }}>
+      <img
+        src={require("../../assets/images/workpro.png")}
+        alt="WorkPro Logo"
+        style={{ height: 27, objectFit: "contain" }}
+      />
+    </div>
   )}
+</div>
+
 </div>
 
         <ul className="nav">

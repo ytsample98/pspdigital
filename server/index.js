@@ -353,6 +353,8 @@ app.post('/api/psc', async (req, res) => {
     `;
     const joined = await pool.query(joinQuery, [psc.id]);
     res.json(await mapFullPscRow(joined.rows[0]));
+
+    
   } catch (err) {
     console.error('❌ POST /api/psc error:', err && err.stack || err);
     res.status(500).json({ error: err.message || String(err) });
