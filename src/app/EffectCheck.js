@@ -25,6 +25,12 @@ const [reasonByCm, setReasonByCm] = useState({});
 const [selectedCmid, setSelectedCmid] = useState([]);    // array of selected CM ids
 const [confirmMode, setConfirmMode] = useState('');      // "accept" | "reject" | ''
 const [batchRemark, setBatchRemark] = useState('');
+const [effectData, setEffectData] = useState(null);
+  const [remarks, setRemarks] = useState('');
+  const [status, setStatus] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [effectHistory, setEffectHistory] = useState([]);
+
   
   // View states for form/preview pattern
   const [showForm, setShowForm] = useState(false);
@@ -77,14 +83,30 @@ const [batchRemark, setBatchRemark] = useState('');
     return () => { mounted = false; };
   }, [targetCmId]);
 
+
+
   useEffect(() => {
     if (selected && escalations.length) setActiveEsc(computeEscalationForPsc(selected, escalations));
     else setActiveEsc(null);
   }, [selected, escalations]);
 
+  const loadEffectHistory = async () => {
+  const res = await axios.get(`/api/psc/${selected.id}/effectcheck`);
+  setEffectHistory(res.data || []);
+};
+
   const fetchPscs = async () => {
     try {
-      const res = await axios.get('/api/psc');
+      // const res = await axios.get('/api/psc');
+       const user = (() => {
+            try { return JSON.parse(localStorage.getItem('dcmsUser')); }
+            catch (e) { return null; }
+          })();
+          const userRespId = user?.user_resp_id || user?.userresp || null;
+          console.log("Fetch Pscs userRespId :", userRespId);
+          const res = await axios.get('/api/psc', {
+            params: { userRespId }
+          });
       setPscs(res.data || []);
     } catch (err) {
       console.error('fetchPscs failed', err);
@@ -111,158 +133,60 @@ const [batchRemark, setBatchRemark] = useState('');
     }
     return [];
   };
-  const toggleAction = (cmId, action) => {
-  setSelectedActions(prev => ({
-    ...prev,
-    [cmId]: prev[cmId] === action ? undefined : action
-  }));
-};
-const handleReason = (cmId, text) => {
-  setReasonByCm(prev => ({ ...prev, [cmId]: text }));
-};
-const submitBatchActions = async () => {
-  const user = JSON.parse(localStorage.getItem('dcmsUser') || '{}');
-  const pscId = selected.id;
-  const cms = getCountermeasures(selected) || [];
 
-  for (const cm of cms) {
-    const action = selectedActions[cm.id];
-    if (!action) continue;
-    const reason = (reasonByCm[cm.id] || '').trim();
-    if (!reason && !window.confirm(`No reason for ${action} CM ${cm.description}. Continue?`)) continue;
+   useEffect(() => {
+    if (!pscContext) fetchAllPsc();
+    else fetchEffectiveness(pscContext.id);
+  }, [pscContext]);
 
-    const log_type = action === 'accept' ? 'Acceptance Remark' : 'Rejection Remark';
-
-    // 1. Insert log
-    await axios.post(`/api/countermeasure/${cm.id}/logs`, {
-      log_type,
-      text: reason,
-      logged_by: user.id
-    });
-
-    // 2. Insert or update effectiveness_check with psccard_id
-    await axios.put(`/api/psc/${pscId}/effectcheck`, {
-      countermeasure_id: cm.id,
-      check_status: action === 'accept' ? 'Accepted' : 'Rejected',
-      checked_by: user.id,
-      remarks: reason,
-      psccard_id: pscId // if your backend expects psccard_id in payload; if not, no need
-    });
-  }
-  // After batch update all, refetch data
-  await openPsc(selected);
-  alert("Submitted selected actions.");
-};
-
-
-  // Open focused remarks form for a single countermeasure
-  const openRemarksFor = (cm, mode = 'accept') => {
-    setRemarksDialog({ show: true, cm, mode, remarks: '' });
-  };
-  const closeRemarks = () => setRemarksDialog({ show: false, cm: null, mode: 'accept', remarks: '' });
-
-  // Core: submit acceptance/rejection using new API shape:
-  // PUT /api/psc/:pscId/effectcheck
-  // body: { countermeasure_id, check_status, checked_by, remarks }
-  const submitDecision = async () => {
-    if (!selected || !remarksDialog.cm) return;
-    const cm = remarksDialog.cm;
-    const mode = remarksDialog.mode;
-    const remarks = (remarksDialog.remarks || '').toString().trim();
-
-    if (!remarks) {
-      if (!window.confirm('No remarks provided. Proceed anyway?')) return;
-    }
-
+  const fetchAllPsc = async () => {
     try {
-      const user = JSON.parse(localStorage.getItem('dcmsUser') || '{}');
-      const payload = {
-        countermeasure_id: cm.id,
-        check_status: mode === 'accept' ? 'Accepted' : 'Rejected',
-        checked_by: user.id || null,
-        remarks: remarks || ''
-      };
-
-      // Call new endpoint which will:
-      // - insert/update effectiveness_check (linked to CM)
-      // - update countermeasure.cm_status
-      // - update parent PSC status/ticket_stage
-      const res = await axios.put(`/api/psc/${selected.id}/effectcheck`, payload);
-      // server returns refreshed PSC, update local selected accordingly
-      if (res.data) setSelected(res.data);
-
-      // close form and return to PSCFullView (invoke onClose if provided)
-      closeRemarks();
-      if (typeof onClose === 'function') onClose(res.data || selected);
-
-      alert(`Countermeasure ${payload.check_status} and logged successfully.`);
+      const res = await axios.get('/api/psc');
+      setPscs(res.data || []);
     } catch (err) {
-      console.error('submitDecision failed', err);
-      alert('Failed to submit decision. See console for details.');
+      console.error('Failed to fetch PSC list', err);
     }
   };
 
-  // New: handle final accept/reject in single-CM mode (three-step transaction)
-  const handleFinalDecision = async (decision) => {
-    if (!targetCm) return alert('No countermeasure loaded.');
-    const cmId = targetCm.id;
-    const pscId = selected?.id || pscContext?.id || targetCm.psc_id || targetCm.problem_id || targetCm.pscId;
-    if (!pscId) return alert('Unable to determine parent PSC for this countermeasure.');
-    const user = JSON.parse(localStorage.getItem('dcmsUser') || '{}');
-    const remarkText = (finalRemark || '').toString().trim();
-    if (!remarkText) {
-      if (!window.confirm('No remark provided. Proceed anyway?')) return;
+  const fetchEffectiveness = async (pscId) => {
+    try {
+      const res = await axios.get(`/api/psc/${pscId}/effectcheck`);
+      setEffectData(res.data || []);
+    } catch (err) {
+      console.error('Failed to fetch effectiveness data', err);
     }
+  };
+
+  const handleSelectPsc = async (psc) => {
+    setSelected(psc);
+    await fetchEffectiveness(psc.id);
+  };
+
+  const submitDecision = async (decision) => {
+    if (!selected) return alert('No PSC selected');
+    if (!remarks.trim() && !window.confirm('No remarks given. Continue?')) return;
 
     try {
-      // 1) Update countermeasure status
-      await axios.put(`/api/countermeasure/${cmId}`, { cm_status: decision === 'accept' ? 'Accepted' : 'Rejected' });
-
-      // 2) Insert log entry
-      await axios.post(`/api/countermeasure/${cmId}/logs`, {
-        log_type: decision === 'accept' ? 'Acceptance Remark' : 'Rejection Remark',
-        text: remarkText || '',
-        logged_by: user.id || null
+      setLoading(true);
+      const user = JSON.parse(localStorage.getItem('dcmsUser') || '{}');
+      await axios.patch(`/api/psccard/effectcheck/${selected.id}`, {
+        effectiveness_status: decision === 'accept' ? 'Accepted' : 'Rejected',
+        effectiveness_remark: remarks,
+        checked_by: user.id
       });
 
-      // 3) Insert effectiveness_check record. Try POST then fallback to legacy PUT endpoint.
-      const effPayload = {
-        countermeasure_id: cmId,
-        check_status: decision === 'accept' ? 'Accepted' : 'Rejected',
-        checked_by: user.id || null,
-        remarks: remarkText || ''
-      };
-      try {
-        await axios.post(`/api/psc/${pscId}/effectiveness_check`, effPayload);
-      } catch (e) {
-        // fallback
-        await axios.put(`/api/psc/${pscId}/effectcheck`, effPayload);
-      }
-
-      // refresh PSC and/or selected CM
-      let updatedPsc = null;
-      try {
-        const res = await axios.get(`/api/psc/${pscId}`);
-        updatedPsc = res.data;
-      } catch (err) {
-        console.warn('Failed to refresh PSC after decision', err);
-      }
-
-      alert(`Countermeasure ${decision === 'accept' ? 'Accepted' : 'Rejected'} and logged successfully.`);
-      if (typeof onClose === 'function') onClose(updatedPsc || selected);
+      alert(`PSC ${decision === 'accept' ? 'Accepted' : 'Rejected'} successfully.`);
+      await fetchEffectiveness(selected.id);
+      setRemarks('');
+      setStatus(decision);
     } catch (err) {
-      console.error('handleFinalDecision failed', err);
-      alert('Failed to submit final decision. See console for details.');
+      console.error('Failed to update effectiveness', err);
+      alert('Error occurred while updating effectiveness.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Filtered list for transaction view: show only CMs that require review
-  const filterForReview = (cms) => {
-    return (cms || []).filter(cm => {
-      const s = (cm.cm_status || cm.status || '').toString().toLowerCase();
-      return s === '' || s === 'pending' || s === 'for validation' || s === 'for validation'.toLowerCase();
-    });
-  };
 
   // Table view for PSC list (when not in single-psc transaction mode)
   const TableView = () => (
@@ -316,10 +240,19 @@ const submitBatchActions = async () => {
       </div>
     </div>
   );
-
+   const cms = getCountermeasures(selected) || [];
+  useEffect(() => {
+  if (cms.length > 0) {
+    const allIds = cms.map(cm => cm.id);
+    setSelectedCmid(allIds);
+  }
+}, [cms]);
 // Table view:
 const PscTransactionView = () => {
+  
   if (!selected) return null;
+  
+
   const cms = getCountermeasures(selected) || [];
   // Helper: get log for remarks
   const getRemarks = (cm) => {
@@ -327,6 +260,11 @@ const PscTransactionView = () => {
     const logs = (cm.logs || []).filter(l => l.type === "Acceptance Remark" || l.type === "Rejection Remark");
     return logs.map(log => log.text).filter(Boolean).join(', ');
   };
+  const previousRemarks = effectHistory
+  .map(r => r.remarks)
+  .filter(Boolean)
+  .join("\n");
+console.log(previousRemarks)
   // Actions/Acceptance/Reject with one click for all
   return (
     
@@ -334,10 +272,10 @@ const PscTransactionView = () => {
       <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div className="d-flex gap-2 mb-2">
   <button className="btn btn-success"
-    disabled={selectedCmid.length==0}
+    // disabled={selectedCmid.length==0}
     onClick={()=>{setConfirmMode('accept');}}>Accept</button>
   <button className="btn btn-danger"
-    disabled={selectedCmid.length==0}
+    // disabled={selectedCmid.length==0}
     onClick={()=>{setConfirmMode('reject');}}>Reject</button>
 </div>
         <h4>Effectiveness Check — {selected.problem_number || selected.problemNumber}</h4>
@@ -348,46 +286,40 @@ const PscTransactionView = () => {
             <table className="table table-bordered table-hover">
              <thead>
   <tr>
-    <th>#</th>
     <th>Description</th>
     <th>Target Date</th>
     <th>Type</th>
     <th>Comments</th>
     <th>Status</th>
-    <th>Reason</th>
   </tr>
 </thead>
 <tbody>
   {cms.map((cm, idx) => (
     <tr key={cm.id}>
-      <td>
-        <input type="checkbox"
-            checked={selectedCmid.includes(cm.id)}
-            onChange={e=>{
-               if(e.target.checked)
-                 setSelectedCmid([...selectedCmid,cm.id]);
-               else
-                 setSelectedCmid(selectedCmid.filter(i=>i!==cm.id));
-            }}/>
-      </td>
       <td>{cm.description}</td>
       <td>{cm.targetDate}</td>
       <td>{cm.type}</td>
       <td>
-        {cm.logs && cm.logs
-           .filter(l=>l.type==="User Comment")
-           .map(l=>l.log_text).join(', ')}
+        {cm.comments}
       </td>
       <td>{cm.cm_status}</td>
-      <td>
-        {/* Show effectcheck reason: last entry from effectiveness_check for this CM */}
-        {cm.effectivenessCheck ? cm.effectivenessCheck.remarks : ""}
-      </td>
     </tr>
   ))}
 </tbody>
             </table>
           </div>
+          
+          <div className="modal-body">
+          <textarea
+          
+            className="form-control"
+            placeholder="Remark..."
+            value={previousRemarks}
+           rows={3} readOnly style={{ minHeight: '100px', maxHeight: '300px' }}
+          />
+        </div>
+          
+          
         </div>
       </div>
      {!!confirmMode && (
@@ -429,24 +361,32 @@ const PscTransactionView = () => {
             className="btn btn-primary"
             onClick={async () => {
               const user = JSON.parse(localStorage.getItem('dcmsUser') || '{}');
+              const userRespId = user?.user_resp_id || user?.userresp || null;
+              console.log('here',selectedCmid,selected.id,selectedCmid.id)
+              //  setSelectedCmid([...selectedCmid,cms.id]);
               for (const cmId of selectedCmid) {
                 await axios.put(`/api/psc/${selected.id}/effectcheck`, {
+
                   countermeasure_id: cmId,
                   check_status: confirmMode === "accept" ? "Accepted" : "Rejected",
                   checked_by: user.id || null,
-                  remarks: batchRemark
+                  remarks: batchRemark,
+                  userRespId:userRespId
                 });
-                console.log("selected.id=", selected?.id, "cmId=", cmId);
-                await axios.post(`/api/countermeasure/${cmId}/logs`, {
-                  log_type: confirmMode === "accept" ? "Accepted" : "Rejection Remark",
-                  text: batchRemark,
-                  logged_by: user.id || null
-                });
+                // console.log("selected.id=", selected?.id, "cmId=", cmId);
+                // await axios.post(`/api/countermeasure/${cmId}/logs`, {
+                //   log_type: confirmMode === "accept" ? "Accepted" : "Rejection Remark",
+                //   text: batchRemark,
+                //   logged_by: user.id || null
+                // });
               }
               setConfirmMode("");
               setBatchRemark("");
               setSelectedCmid([]);
               await openPsc(selected);
+              
+
+
             }}
           >
             Save
@@ -470,7 +410,7 @@ const PscTransactionView = () => {
           <h4>Effect Check Preview — {selected.problem_number || selected.problemNumber}</h4>
           <div>
             <button className="btn btn-secondary mr-2" onClick={() => { setShowPreview(false); setSelected(null); }}>Back to List</button>
-            <button className="btn btn-primary" onClick={() => { setShowForm(true); setShowPreview(false); }}>
+            <button className="btn btn-primary" onClick={() => { setShowForm(true); setShowPreview(false);  loadEffectHistory(); }}>
               Review Countermeasures
             </button>
           </div>
@@ -484,80 +424,80 @@ const PscTransactionView = () => {
     );
   };
 
-  // If in single-CM mode, render focused review UI
-  if (targetCmId) {
-    return (
-      <div>
-        <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between' }}>
-          <h4>Review Countermeasure — {targetCm ? (targetCm.id || '') : targetCmId}</h4>
-          <div>
-            <button className="btn btn-secondary mr-2" onClick={() => { if (typeof onClose === 'function') onClose(selected); }}>Close</button>
-            <button className="btn btn-outline-primary" onClick={async () => {
-              // refresh CM
-              if (!targetCmId) return;
-              try {
-                const res = await axios.get(`/api/countermeasure/${targetCmId}`);
-                setTargetCm(res.data);
-                const logsRes = await axios.get(`/api/countermeasure/${targetCmId}/logs`);
-                setCmHistory(Array.isArray(logsRes.data) ? logsRes.data : []);
-              } catch (err) { console.error('refresh cm failed', err); }
-            }}>Refresh</button>
-          </div>
-        </div>
+  // // If in single-CM mode, render focused review UI
+  // if (targetCmId) {
+  //   return (
+  //     <div>
+  //       <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between' }}>
+  //         <h4>Review Countermeasure — {targetCm ? (targetCm.id || '') : targetCmId}</h4>
+  //         <div>
+  //           <button className="btn btn-secondary mr-2" onClick={() => { if (typeof onClose === 'function') onClose(selected); }}>Close</button>
+  //           <button className="btn btn-outline-primary" onClick={async () => {
+  //             // refresh CM
+  //             if (!targetCmId) return;
+  //             try {
+  //               const res = await axios.get(`/api/countermeasure/${targetCmId}`);
+  //               setTargetCm(res.data);
+  //               const logsRes = await axios.get(`/api/countermeasure/${targetCmId}/logs`);
+  //               setCmHistory(Array.isArray(logsRes.data) ? logsRes.data : []);
+  //             } catch (err) { console.error('refresh cm failed', err); }
+  //           }}>Refresh</button>
+  //         </div>
+  //       </div>
 
-        <div className="card">
-          <div className="card-body">
-            {cmLoading ? (
-              <div>Loading countermeasure...</div>
-            ) : (
-              <div>
-                <div className="mb-3">
-                  <strong>Description:</strong>
-                  <div className="p-2 border">{targetCm?.description || targetCm?.countermeasure || ''}</div>
-                </div>
-                <div className="mb-3"><strong>Target Date:</strong> {targetCm?.targetDate || targetCm?.target_date || ''}</div>
-                <div className="mb-3"><strong>Type:</strong> {targetCm?.type || ''}</div>
-                <div className="mb-3"><strong>Status:</strong> {targetCm?.cm_status || targetCm?.status || 'Pending'}</div>
+  //       <div className="card">
+  //         <div className="card-body">
+  //           {cmLoading ? (
+  //             <div>Loading countermeasure...</div>
+  //           ) : (
+  //             <div>
+  //               <div className="mb-3">
+  //                 <strong>Description:</strong>
+  //                 <div className="p-2 border">{targetCm?.description || targetCm?.countermeasure || ''}</div>
+  //               </div>
+  //               <div className="mb-3"><strong>Target Date:</strong> {targetCm?.targetDate || targetCm?.target_date || ''}</div>
+  //               <div className="mb-3"><strong>Type:</strong> {targetCm?.type || ''}</div>
+  //               <div className="mb-3"><strong>Status:</strong> {targetCm?.cm_status || targetCm?.status || 'Pending'}</div>
 
-                <hr />
-                <div>
-                  <h5>History</h5>
-                  <div style={{ maxHeight: '35vh', overflowY: 'auto', paddingBottom: 8 }}>
-                    {(!cmHistory || cmHistory.length === 0) ? (
-                      <div className="text-muted">No history available.</div>
-                    ) : (
-                      cmHistory.slice().sort((a,b) => new Date(a.timestamp||0) - new Date(b.timestamp||0)).map(entry => (
-                        <div key={entry.id} className="mb-2">
-                          <div style={{ padding: 10, borderRadius: 8, backgroundColor: '#f8f9fa' }}>
-                            <div style={{ fontWeight: 700 }}>{entry.type || entry.log_type || 'Comment'}</div>
-                            <div style={{ whiteSpace: 'pre-wrap' }}>{entry.text}</div>
-                            <div className="text-muted small">{entry.logged_by_name || entry.logged_by || 'System'} — {entry.timestamp ? new Date(entry.timestamp).toLocaleString() : ''}</div>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
+  //               <hr />
+  //               <div>
+  //                 <h5>History</h5>
+  //                 <div style={{ maxHeight: '35vh', overflowY: 'auto', paddingBottom: 8 }}>
+  //                   {(!cmHistory || cmHistory.length === 0) ? (
+  //                     <div className="text-muted">No history available.</div>
+  //                   ) : (
+  //                     cmHistory.slice().sort((a,b) => new Date(a.timestamp||0) - new Date(b.timestamp||0)).map(entry => (
+  //                       <div key={entry.id} className="mb-2">
+  //                         <div style={{ padding: 10, borderRadius: 8, backgroundColor: '#f8f9fa' }}>
+  //                           <div style={{ fontWeight: 700 }}>{entry.type || entry.log_type || 'Comment'}</div>
+  //                           <div style={{ whiteSpace: 'pre-wrap' }}>{entry.text}</div>
+  //                           <div className="text-muted small">{entry.logged_by_name || entry.logged_by || 'System'} — {entry.timestamp ? new Date(entry.timestamp).toLocaleString() : ''}</div>
+  //                         </div>
+  //                       </div>
+  //                     ))
+  //                   )}
+  //                 </div>
+  //               </div>
 
-                <hr />
+  //               <hr />
 
-                <div>
-                  <div className="form-group">
-                    <label>Acceptance / Rejection Remark</label>
-                    <textarea className="form-control" rows={4} value={finalRemark} onChange={e => setFinalRemark(e.target.value)} />
-                  </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button className="btn btn-success" onClick={() => handleFinalDecision('accept')} disabled={!canEdit}>Accept</button>
-                    <button className="btn btn-danger" onClick={() => handleFinalDecision('reject')} disabled={!canEdit}>Reject</button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
+  //               <div>
+  //                 <div className="form-group">
+  //                   <label>Acceptance / Rejection Remark</label>
+  //                   <textarea className="form-control" rows={4} value={finalRemark} onChange={e => setFinalRemark(e.target.value)} />
+  //                 </div>
+  //                 <div style={{ display: 'flex', gap: 8 }}>
+  //                   <button className="btn btn-success" onClick={() => handleFinalDecision('accept')} disabled={!canEdit}>Accept</button>
+  //                   <button className="btn btn-danger" onClick={() => handleFinalDecision('reject')} disabled={!canEdit}>Reject</button>
+  //                 </div>
+  //               </div>
+  //             </div>
+  //           )}
+  //         </div>
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
   // Decide which view to show for non-targetCm mode
   if (showForm) {

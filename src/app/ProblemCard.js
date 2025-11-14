@@ -83,12 +83,23 @@ const ProblemCard = ({ psc = {},activeEsc=null }) => {
             <label>
               Time: from <span className="readonly">08:00</span> to <span className="readonly">17:00</span>
             </label>
-            <label>
-              KPI: <span className="readonly">Quality</span>
-            </label>
-            <label>
-              S Q D C: <span className="readonly">Q</span>
-            </label>
+           <label>
+  KPI:{' '}
+  <span className="readonly">
+    {{
+      s: 'Safety',
+      q: 'Quality',
+      d: 'Delivery',
+      c: 'Cost',
+      e: 'Environment',
+    }[p.problem_type] || '-'}
+  </span>
+</label>
+
+<label>
+  S Q D C E: <span className="readonly">{p.problem_type}</span>
+</label>
+
           </div>
         </div>
 

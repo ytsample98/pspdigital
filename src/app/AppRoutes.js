@@ -17,6 +17,9 @@ const PSC=lazy(()=>import('./PSCList'));
 const CA= lazy(()=>import('./CorrectiveAction'));
 const RCA=lazy(()=>import('./RootCause'));
 const EffectCheck=lazy(()=>import('./EffectCheck'));
+const UserType=lazy(()=> import('./administrator/UserType'));
+const UserResponsibility=lazy(()=> import('./administrator/UserResponsibility'));
+const EscalationMatrix=lazy(()=> import('./administrator/EscalationMatrix'));
 
 
 class AppRoutes extends Component {
@@ -37,6 +40,9 @@ class AppRoutes extends Component {
           <Route path="/administrator/OrganizationPage" component={OrganizationPage} />
           <Route path="/administrator/UserCreation" component={UserCreation} />
           <Route path="/administrator/Masters" component={Masters} />
+           <Route path="/administrator/UserType" component={UserType} />
+          <Route path="/administrator/UserResponsibility" component={UserResponsibility} />
+          <Route path="/administrator/EscalationMatrix" component={EscalationMatrix} />
           {/* Default: go to Login first */}
           <Redirect to="/dashboard" />
         </Switch>

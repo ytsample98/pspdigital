@@ -212,6 +212,9 @@ onRouteChanged() {
           )}
 
         </ul>
+        <div style={{ position: 'relative', bottom: '-120px', width: '100%', textAlign: 'center', fontSize: '13px', color: '#fff', fontweight: '500' }}>
+          Version 1.0
+        </div>
       </nav>
     );
   }

@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from "react-router-dom";
-import { loadEscalations, computeEscalationForPsc, hoursSince, isFieldEditable } from './pscPermissions';
+//import { loadEscalations, computeEscalationForPsc, hoursSince, isFieldEditable } from './pscPermissions';
 import axios from 'axios';
 import ProblemCard from './ProblemCard.js';
+import { loadEscalations, computeEscalationForPsc, isFieldEditable,hoursSince } from './pscPermissions';
 
 
 export default function PSCFullView({ psc = {}, actions = null, onClose = () => {}, onOpenEffectCheck = null, openPrint = () => { window.location.href = '/ProblemCard'; } }) {
@@ -229,6 +230,19 @@ setShowProblemCard(true);
                 <div className='form-group col-md-2'><label>Qty Affected:</label><div>{p.qty_affected || p.qtyAffected || ''}</div></div>
                 <div className='form-group col-md-2'><label>Part:</label> <div>{p.part_affected || p.partAffected || ''}</div></div>
                 <div className='form-group col-md-2'><label>Supplier:</label> <div>{p.supplier || ''}</div></div>
+                <div className='form-group col-md-2'><label> KPI:</label>
+<div>
+    {{
+      S: 'Safety',
+      Q: 'Quality',
+      D: 'Delivery',
+      C: 'Cost',
+      E: 'Environment',
+    }[p.problem_type] || '-'}
+  </div> 
+  
+</div>
+
                 
 </div>
           
@@ -269,7 +283,7 @@ setShowProblemCard(true);
         <th>Type</th>
         <th>Comments</th>
         <th>Status</th>
-        <th>Rejection Details</th>
+        {/* <th>Rejection Details</th> */}
       </tr>
     </thead>
     <tbody>
@@ -285,7 +299,7 @@ setShowProblemCard(true);
               <td>{cm.type|| ''}</td>
               <td>{cm.counter_comments || ''}</td>
               <td>{cm.status || 'Pending'}</td>
-             <td> {cm.status === 'Rejected' ? (cm.rejection_reason): ''}</td>
+             {/* <td> {cm.status === 'Rejected' ? (cm.rejection_reason): ''}</td> */}
             </tr>
           ))
       ) : (
@@ -372,3 +386,5 @@ setShowProblemCard(true);
     </div>
   );
 }
+
+

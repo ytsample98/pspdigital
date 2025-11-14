@@ -57,3 +57,23 @@
   background-color: #4caf50; /* Green */
   color: #155724;
 }
+
+.competency-legend {
+  display: flex;
+  /* margin-top: 10px; */
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  width: 15%;     
+  height: 25px;
+  color: black;
+  font-weight: 600;
+  padding-left: 10px;
+  box-shadow: 0 0 3px rgba(0,0,0,0.3);
+}
+
+.legend-red { background-color: #ff6b6b; }
+.legend-yellow { background-color: #ffdd57; }
+.legend-green { background-color: #51cf66; }

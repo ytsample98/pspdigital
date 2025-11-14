@@ -29,75 +29,83 @@ class Login extends Component {
   };
 
   render() {
-    return (
-      <div className="login-page">
-          <img
-        src={require('../../assets/images/yaanarlogo.png')} // 👈 replace with your new left logo image
-        alt="Left Logo"
-        className="corner-logo left"
-      />
-      <img
-        src={require('../../assets/images/Mahlelogo.jpg')}
-        alt="MAHLE"
-        className="corner-logo right"
-      />
-        <div className="login-overlay">
-          <div className="left-panel">
-            <div className="brand-area">
-             
-              <div className="brand-copy">
-                <h1>Shop Floor Management - Problem Solving Process</h1>
-              </div>
-            </div>
-          </div>
-
-          <div className="right-panel">
-            <div className="signup-card glass-card">
-              <div className="card-header text-center">
-  
-  <p className="mt-2">PSP Digital</p>
-</div>
-
-              
-
-              <Form className="pt-2" onSubmit={this.handleSubmit}>
-                <Form.Group>
-                  <Form.Control
-                    type="email"
-                    placeholder="Email"
-                    size="lg"
-                    onChange={(e) => this.setState({ email: e.target.value })}
-                    required
-                  />
-                </Form.Group>
-                <Form.Group>
-                  <Form.Control
-                    type="password"
-                    placeholder="Password"
-                    size="lg"
-                    onChange={(e) => this.setState({ password: e.target.value })}
-                    required
-                  />
-                </Form.Group>
-
-                {this.state.error && <p className="text-danger">{this.state.error}</p>}
-
-                <div className="mt-3">
-                  <button
-                    type="submit"
-                    className="btn btn-block btn-primary btn-lg font-weight-medium auth-form-btn"
-                  >
-                    SIGN IN
-                  </button>
-                </div>
-
-                
-              </Form>
-            </div>
+   return (
+  <div className="login-page">
+    <div className="login-overlay">
+      <div className="left-panel">
+        <div className="brand-area">
+          <div className="brand-copy">
+            <h1>Shop Floor Management - Problem Solving Process</h1>
           </div>
         </div>
       </div>
-    );
+
+      <div className="right-panel">
+        
+        <div className="signup-card glass-card">
+          <div className="card-header text-center">
+            {/* 👇 MAHLE logo inside signup box */}
+            <img
+              src={require('../../assets/images/Mahlelogo.jpg')}
+              alt="MAHLE"
+              className="mahle-logo"
+              style={{
+                width: '100px',
+                marginBottom: '10px',
+              }}
+            />
+            <p className="mt-2">PSP Digital</p>
+          </div>
+
+          <Form className="pt-2" onSubmit={this.handleSubmit}>
+            <Form.Group>
+              <Form.Control
+                type="email"
+                placeholder="Email"
+                size="lg"
+                onChange={(e) => this.setState({ email: e.target.value })}
+                required
+              />
+            </Form.Group>
+            <Form.Group>
+              <Form.Control
+                type="password"
+                placeholder="Password"
+                size="lg"
+                onChange={(e) => this.setState({ password: e.target.value })}
+                required
+              />
+            </Form.Group>
+
+            {this.state.error && <p className="text-danger">{this.state.error}</p>}
+
+            <div className="mt-3">
+              <button
+                type="submit"
+                className="btn btn-block btn-primary btn-lg font-weight-medium auth-form-btn"
+              >
+                SIGN IN
+              </button>
+            </div>
+          </Form>
+        </div>
+      </div>
+    </div>
+
+    {/* 👇 Footer with Powered by Yaanar */}
+    <footer
+      style={{
+        textAlign: 'center',
+        color: 'white',
+        marginTop: '20px',
+        fontSize: '14px',
+      }}
+    >
+      Powered by Yaanar
+    </footer>
+  </div>
+);
+
   }
 }
 

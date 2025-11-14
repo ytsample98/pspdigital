@@ -122,16 +122,24 @@ addNotification = (cardId, message) => {
             <i className="mdi mdi-menu"></i>
           </button>
 
- <div className="d-none d-md-flex align-items-center" style={{ marginLeft: 16 }}>
+ <div className="nav-item nav-profile border-0 d-flex align-items-center" >
   <img
     src={require("../../assets/images/Mahle.jpg")}
     alt="Custom"
     style={{ maxHeight: 35 }}
   />
-  <span style={{ marginLeft: 8, fontWeight: 600, fontSize: 16, color: '#333' }}>
+ </div>
+{/* <span style={{ alignItems:'center', fontWeight: 800, fontSize: 18, color: '#0c178cff' }}>
     Shop Floor Management (PSP)
-  </span>
-</div>
+  </span> */}
+  <div className="flex-grow-1 text-center">
+            <h4 style={{ margin: 0, fontWeight: 600, color: '#0c178cff' }}>
+             SFM- Problem Solving Process
+            </h4>
+          </div>
+ 
+  
+
 
 
 
@@ -146,7 +154,7 @@ addNotification = (cardId, message) => {
   style={{ cursor: "pointer" }}
 >
   {/* Bell icon */}
-  <FaBell size={22} color="#333" onClick={() => this.setState({ showNotifications: true ,notificationCount:true})} />
+  {/* <FaBell size={22} color="#333" onClick={() => this.setState({ showNotifications: true ,notificationCount:true})} /> */}
 
   {/* Count badge */}
   {notificationCount > 0 && (

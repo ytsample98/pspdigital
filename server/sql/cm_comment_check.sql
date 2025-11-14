@@ -50,3 +50,33 @@ CREATE TABLE IF NOT EXISTS effectiveness_check (
   checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 /*543 in index*/
+
+
+CREATE TABLE escalation_level1 (
+    id SERIAL PRIMARY KEY,
+    due_time TIMESTAMP,
+    psccard_id INT NOT NULL REFERENCES psccard(id),
+    escalation_id INT NOT NULL REFERENCES escalation(id),
+    user_resp_id INT NOT NULL REFERENCES user_responsibility(id),
+    status VARCHAR(50) DEFAULT 'Open',
+); 
+
+CREATE TABLE escalation_level2 (
+    id SERIAL PRIMARY KEY,
+    psccard_id INT NOT NULL REFERENCES psccard(id),
+    escalation_id INT NOT NULL REFERENCES escalation(id),
+    user_resp_id INT NOT NULL REFERENCES user_responsibility(id),
+    status VARCHAR(50) DEFAULT 'Open',
+    timestamp_escalated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    due_time TIMESTAMP
+);
+
+CREATE TABLE escalation_level3 (
+    id SERIAL PRIMARY KEY,
+    psccard_id INT NOT NULL REFERENCES psccard(id),
+    escalation_id INT NOT NULL REFERENCES escalation(id),
+    user_resp_id INT NOT NULL REFERENCES user_responsibility(id),
+    status VARCHAR(50) DEFAULT 'Open',
+    timestamp_escalated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    due_time TIMESTAMP
+);

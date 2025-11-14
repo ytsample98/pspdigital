@@ -235,6 +235,19 @@ const [data, setData] = useState([]);
     <div className="psp-dashboard">
 
       <h2 className="title">PSP Competency</h2>
+      <div className="competency-legend">
+        <div className="legend-item legend-red">
+          &lt; 60%
+        </div>
+
+        <div className="legend-item legend-yellow">
+          60% – 80%
+        </div>
+
+        <div className="legend-item legend-green">
+          &gt; 80%
+        </div>
+      </div>
       <div className="table-container">
 
         <table className="competency-table">
@@ -300,9 +313,12 @@ const [data, setData] = useState([]);
                 <td>{row.plantLevel.plant_opened}</td>
 
                 <td>{row.pending}</td>
-                <td className={getCompetencyClass(row.competency)}>
+                {/* <td className={getCompetencyClass(row.competency)}>
                   {row.competency}%
-                </td>
+                </td> */}
+                 <td className={row.raised === 0 || row.competency == null ? "" : getCompetencyClass(row.competency)}>
+                    {row.raised === 0 || row.competency == null ? "#Div/0!" : `${row.competency}%`}
+                  </td>
               </tr>
             );
  })
@@ -311,9 +327,9 @@ const [data, setData] = useState([]);
         </table>
         
       </div>
-      <div className="chart-container">
+      {/* <div className="chart-container">
         <PSPChart dashdata={dashdata} />  
-      </div>
+      </div> */}
     </div>
     
   );

@@ -23,7 +23,7 @@ body, html, #root { height: 100%; margin: 0; font-family: 'Roboto', system-ui, -
 .login-page {
   min-height: 100vh;
   width: 100%;
-  background-image: url('../images/tech.jpg');
+  background-image: url('../images/background.jpg');
   background-size: cover;
   background-position: center;
   display: flex;
@@ -83,7 +83,7 @@ body, html, #root { height: 100%; margin: 0; font-family: 'Roboto', system-ui, -
 }
 .brand-copy h1 {
   margin: 28px 0 10px;
-  font-weight: 500;
+  font-weight: 300;
   font-size: 2.6rem;
   letter-spacing: -0.6px;
   line-height: 1.06;
@@ -98,6 +98,9 @@ body, html, #root { height: 100%; margin: 0; font-family: 'Roboto', system-ui, -
   max-width: 420px;
 }
 
+.right-panel .brand-area {
+  margin-bottom: 28px;
+}
 /* Right side - glass card for sign in */
 .right-panel {
   flex: 0 0 36%;
@@ -209,6 +212,15 @@ body, html, #root { height: 100%; margin: 0; font-family: 'Roboto', system-ui, -
   align-items: center;
   margin-top: 16px;
   color: rgba(255,255,255,0.72);
+}
+footer {
+  position: absolute;
+  bottom: 20px;
+  width: 100%;
+  text-align: center;
+  color: #fff;
+  font-size: 20px;
+  letter-spacing: 0.5px;
 }
 .muted-link {
   color: rgba(255,255,255,0.72);

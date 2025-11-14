@@ -26,16 +26,16 @@
   margin-top: 8px;
 }
 .ytd-metric-container .metric-card:nth-child(1) {
-  background: linear-gradient(135deg, #4facfe, #00f2fe);
+  /* background: linear-gradient(135deg, #4facfe, #00f2fe); */
   color: white;
 }
 
 .ytd-metric-container .metric-card:nth-child(2) {
-  background: linear-gradient(135deg, #43e97b, #38f9d7);
+  /* background: linear-gradient(135deg, #43e97b, #38f9d7); */
   color: white;
 }
 
 .ytd-metric-container .metric-card:nth-child(3) {
-  background: linear-gradient(135deg, #fa709a, #fee140);
+  /* background: linear-gradient(135deg, #fa709a, #fee140); */
   color: white;
 }

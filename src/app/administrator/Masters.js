@@ -131,10 +131,10 @@ class Masters extends Component {
               {list.map(l => (
                 <tr key={l.id}>
                   <td><button className="btn btn-sm btn-link p-0" onClick={() => this.openEdit('department', l)}>Edit</button></td>
-                  <td>{l.deptCode}</td>
-                  <td>{l.deptName}</td>
-                  <td>{l.createdBy}</td>
-                  <td>{l.createdDate}</td>
+                  <td>{l.dept_code}</td>
+                  <td>{l.dept_name}</td>
+                  <td>{l.created_by}</td>
+                  <td>{l.created_date}</td>
                 </tr>
               ))}
               {list.length===0 && <tr><td colSpan={5} className="text-center">No records</td></tr>}

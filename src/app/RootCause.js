@@ -1,352 +1,69 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import PSCFullView from './PSCFullView';
-import CommentDialog from './CommentDialog'; // placeholder — user said they'll provide / prompt later
+import CommentDialog from './CommentDialog';
 import { loadEscalations, computeEscalationForPsc } from './pscPermissions';
 import { useCanEdit } from './canEdit';
 import { Tabs, Tab } from 'react-bootstrap';
 
-export default function RootCause() {
-  const [pscs, setPscs] = useState([]);
-  const [text, setText] = useState('');
-  const [rows, setRows] = useState([]);
-  const [selected, setSelected] = useState(null);
-
-  // root cause draft/final structure
-  const [root, setRoot] = useState({
-    symptom: '',
-    finalCause: '', // new required field per spec
-    why1: '',
-    why2: '',
-    why3: '',
-    why4: '',
-    why5: '',
-    countermeasures: []
-  });
-const [form, setForm] = useState({
-    description: "",
-    date: "",
-    address: ""
-  });
-  // Reassign state kept from original file for backward compatibility
-  const [reassign, setReassign] = useState({remarks: '', assignTo: '' });
-  const [showReassignSimple, setShowReassignSimple] = useState(false);
-
-  // view flags
-  const [showForm, setShowForm] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
-
-  // permissions & helpers
-  const [departments, setDepartments] = useState([]);
-  const [escalations, setEscalations] = useState([]);
-  const [activeEsc, setActiveEsc] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const canEdit = useCanEdit(selected, activeEsc);
-
-  // NEW: UI state for tab and comment dialog
-  const [activeTab, setActiveTab] = useState('root'); // 'root' or 'cm'
-  const [showCommentsDialog, setShowCommentsDialog] = useState(false);
-  const [selectedCMForComments, setSelectedCMForComments] = useState(null); // full countermeasure object
-  const [cmHistory, setCmHistory] = useState([]); // full historical log data for selected CM
-
-  useEffect(() => {
-    fetchPscs();
-    loadEscalations().then(list => setEscalations(list));
-  }, []);
-
-  useEffect(() => {
-    if (selected) refreshPsc(selected.id);
-  }, [selected]);
-
-  const fetchPscs = async () => {
-    try {
-      const res = await axios.get('/api/psc');
-      setPscs(res.data || []);
-    } catch (e) {
-      console.warn('fetch pscs failed', e);
-    }
-  };
-
-  const fetchDepartments = async () => {
-    try {
-      const res = await axios.get('/api/department');
-      setDepartments(res.data || []);
-    } catch (e) {
-      console.warn('dept load failed', e);
-    }
-  };
-  const handleSelect = (psc) => {
-    setSelected(psc);
-    setShowPreview(true);
-    setShowForm(false);
-    if (!escalations.length) {
-      loadEscalations().then(list => {
-        setEscalations(list);
-        setActiveEsc(computeEscalationForPsc(psc, list));
-      });
-    } else {
-      setActiveEsc(computeEscalationForPsc(psc, escalations));
-    }
-  };
-
-  const refreshPsc = async (pscId) => {
-    try {
-      const res = await axios.get(`/api/psc/${pscId}`);
-      if (!res.data) return;
-      const joined = res.data;
-      if (joined.root_cause) {
-        const rc = joined.root_cause;
-        setRoot({
-          symptom: rc.symptom || '',
-          finalCause: rc.final_cause || '',
-          why1: rc.why1 || '',
-          why2: rc.why2 || '',
-          why3: rc.why3 || '',
-          why4: rc.why4 || '',
-          why5: rc.why5 || '',
-          // map canonical CMs
-          countermeasures: (rc.countermeasures || []).map(cm => ({
-            id: cm.id,
-            description: cm.description || cm.countermeasure,
-            targetDate: cm.targetDate || cm.target_date || null,
-            type: cm.type || '',
-            cm_status: cm.cm_status || cm.status || 'Pending',
-            createdBy: cm.createdBy || cm.created_by || null,
-            createdAt: cm.createdAt || cm.created_at || null
-          }))
-        });
-        // If root cause exists, automatically open CM tab when opening form
-        setActiveTab('cm');
-      } else {
-        // no root cause -> show root tab
-        setRoot(prev => ({ ...prev, countermeasures: prev.countermeasures || [] }));
-        setActiveTab('root');
-      }
-    } catch (err) {
-      console.warn('refreshPsc failed', err);
-    }
-  };
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setRoot(prev => ({ ...prev, [name]: value }));
-  };
-
-  // only a single input area for adding CM (the UI keeps last row as input)
-  const handleCountermeasureChange = (field, value) => {
-    setRoot(prev => {
-      const cms = Array.isArray(prev.countermeasures) ? prev.countermeasures.map(c => ({ ...c })) : [];
-      const idx = cms.length ? cms.length - 1 : 0;
-      while (cms.length <= idx) {
-        cms.push({ id: null, description: '', targetDate: '', type: '', cm_status: 'Pending' });
-      }
-      cms[idx][field] = value;
-      if (field === 'targetDate') {
-        try {
-          const diff = (new Date(value) - new Date()) / (1000 * 60 * 60 * 24);
-          cms[idx].type = diff > 7 ? 'long corrective action' : 'short corrective action';
-        } catch (err) {
-          cms[idx].type = '';
-        }
-      }
-      return { ...prev, countermeasures: cms };
-    });
-    
-  };
-
-  const saveRootAndNext = async (e) => {
-    if (e && e.preventDefault) e.preventDefault();
-    if (!selected) return;
-    if (!root.why1 || !root.why2 || !root.why3) return alert('Why 1, Why 2 and Why 3 are required.');
-    if (!root.finalCause || !root.finalCause.toString().trim()) return alert('Final Cause is required.');
-
-    const user = JSON.parse(localStorage.getItem('dcmsUser') || '{}');
-    const cmsToSend = (root.countermeasures || []).filter(cm => (cm.description || '').toString().trim()).map(cm => ({
-      description: cm.description,
-      targetDate: cm.targetDate,
-      type: cm.type,
-      created_by: user.id || null
-    }));
-
-    const payload = {
-      why1: root.why1,
-      why2: root.why2,
-      why3: root.why3,
-      why4: root.why4,
-      why5: root.why5,
-      final_cause: root.finalCause,
-      filled_by: user.id || null,
-      countermeasures: cmsToSend
-    };
-
-    try {
-      await axios.put(`/api/psc/${selected.id}/rootcause`, payload);
-      await refreshPsc(selected.id);
-      // switch to countermeasure tab
-      setActiveTab('cm');
-      
-    } catch (err) {
-      console.error('saveRootAndNext failed', err);
-      alert('Failed to save root cause. See console.');
-    }
-  };
-
-  // Add (save) countermeasure: validates fields and posts to server
-  const saveCountermeasure = async () => {
-    if (!selected) return;
-    // take last (input) cm
-    const cms = root.countermeasures || [];
-    const last = cms.length ? cms[cms.length - 1] : null;
-    if (!last || !(last.description || '').toString().trim()) return alert('Please enter Countermeasure description.');
-    // targetDate and type are expected; validate targetDate
-    if (!last.targetDate) return alert('Please select Target Date for the countermeasure.');
-    const newEntry = {description: last.description, targetDate: last.targetDate, type: last.type}; // if object: {...text} to create a copy
-    setRows((prevRows) => [...prevRows, newEntry]);
-
-    const user = JSON.parse(localStorage.getItem('dcmsUser') || '{}');
-    const payload = {
-      description: last.description,
-      targetDate: last.targetDate,
-      type: last.type || '',
-      created_by: user.id || null
-    };
-
-    try {
-      await axios.post(`/api/psc/${selected.id}/countermeasure`, payload);
-      // refresh to load canonical CMs and ids
-      await refreshPsc(selected.id);
-      setText('');
-      setRows((prevRows) => [...prevRows, newEntry]);
-      setRoot(prev => {
-        const updated = (prev.countermeasures || []).map(c => ({ ...c }));
-        // push empty if last after refresh is filled
-        const lastAfter = updated[updated.length - 1] || {};
-        if (lastAfter && (lastAfter.description || '').toString().trim()) {
-          updated.push({ id: null, description: '', targetDate: '', type: '', cm_status: 'Pending' });
-        }
-        return { ...prev, countermeasures: updated };
-      });
-    } catch (err) {
-      console.error('saveCountermeasure failed', err);
-      alert('Failed to save countermeasure. See console.');
-    }
-  };
-
-  // Open comments dialog: fetch countermeasure history from server
-  const openCommentsDialog = async (cm) => {
-    if (!cm || !cm.id) {
-      setSelectedCMForComments(cm);
-      setCmHistory([]);
-      setShowCommentsDialog(true);
-      return;
-    }
-    try {
-      const res = await axios.get(`/api/countermeasure/${cm.id}/history`);
-      setSelectedCMForComments(cm);
-      setCmHistory((res.data || []).map(h => ({
-        id: h.id,
-        type: h.type,
-        text: h.text,
-        logged_by: h.logged_by,
-        logged_by_name: h.logged_by_name,
-        timestamp: h.timestamp
-      })));
-      setShowCommentsDialog(true);
-    } catch (err) {
-      console.error('openCommentsDialog failed', err);
-      setSelectedCMForComments(cm);
-      setCmHistory([]);
-      setShowCommentsDialog(true);
-    }
-  };
-
-  // Submit comment from dialog -> server -> refresh CMs and close dialog
-  const submitCommentForSelectedCM = async (commentText) => {
-    if (!selectedCMForComments || !selectedCMForComments.id) return alert('Save the countermeasure first.');
-    try {
-      const user = JSON.parse(localStorage.getItem('dcmsUser') || '{}');
-      await axios.post(`/api/countermeasure/${selectedCMForComments.id}/comment`, {
-        comment: commentText,
-        logged_by: user.id || null
-      });
-      // after posting comment, refresh PSC to reflect cm_status change and history
-      await refreshPsc(selected.id);
-      setShowCommentsDialog(false);
-      setSelectedCMForComments(null);
-      setCmHistory([]);
-    } catch (err) {
-      console.error('submitComment failed', err);
-      alert('Failed to submit comment.');
-    }
-  };
-
-  // UI helpers
-  const badgeForStatus = (status) => {
-    const s = (status || '').toLowerCase();
-    const className =
-      s === 'accepted' ? 'badge badge-success' :
-        s === 'for validation' ? 'badge badge-warning' :
-          s === 'rejected' ? 'badge badge-danger' :
-            'badge badge-secondary';
-    return <span className={className}>{status || 'Pending'}</span>;
-  };
+// Small helper to create an empty CM row
+const makeEmptyCm = (tempId = null) => ({
+  id: null,
+  tempId,
+  description: '',
+  targetDate: '',
+  type: '',
+  cm_status: 'Pending',
+  comments:'',
+  reasons:''
+});
+ 
 
 
-  const removeCountermeasureRow = (index) => {
-    setRoot((prev) => {
-      const cms = (prev.countermeasures || []).map((c) => ({ ...c }));
-      cms.splice(index, 1);
-      return { ...prev, countermeasures: cms };
-    });
-  };
+// Memoized input row to avoid remounts while typing
+const CMInputRow = React.memo(function CMInputRow({ cm, onChange }) {
+  const desc = cm?.description || '';
+  const targetDate = cm?.targetDate || '';
+  const type = cm?.type || '';
 
-  const handleReassignChange = (e) => {
-    const { name, value } = e.target;
-    setReassign((prev) => {
-      const next = { ...prev, [name]: value };
-      if (name === 'targetDate') {
-        try {
-          const diff = (new Date(value) - new Date()) / (1000 * 60 * 60 * 24);
-          next.type = diff > 7 ? 'long corrective action' : 'short corrective action';
-        } catch (err) {
-          next.type = '';
-        }
-      }
-      return next;
-    });
-  };
+  return (
+    <div className="mb-3">
+      <div className="form-row">
+        <div className="col-12">
+          <label>Description</label>
+          <textarea
+            className="form-control"
+            value={desc}
+            onChange={(e) => onChange('description', e.target.value)}
+            rows={3}
+          />
+        </div>
+      </div>
 
-  const submitReassign = async () => {
-    if (!selected) return;
-    try {
-      const payload = { corrective_action: reassign, status: 'Work in Progress', ticket_stage: 'Do' };
-      await axios.put(`/api/psc/${selected.id}`, payload);
-      setReassign({ countMeasure: '', targetDate: '', type: '', remarks: '', assignTo: '' });
-      setShowPreview(false);
-      setSelected(null);
-      fetchPscs();
-    } catch (err) {
-      console.error('submit reassign failed', err);
-    }
-  };
+      <div className="form-row mt-2">
+        <div className="col-md-6">
+          <label className="mt-2">Target Date</label>
+          <input
+            type="date"
+            className="form-control"
+            value={targetDate}
+            onChange={(e) => onChange('targetDate', e.target.value)}
+          />
+        </div>
+        <div className="col-md-6">
+          <label className="mt-2">Type</label>
+          <input className="form-control" readOnly value={type} />
+        </div>
+      </div>
+    </div>
+  );
+});
 
-
-  const filtered = pscs.filter((p) => {
-    const s = (searchTerm || '').toLowerCase();
-    const maybe = (v) => (v || '').toString().toLowerCase();
-    return (
-      maybe(p.problem_number || p.problemNumber).includes(s) ||
-      maybe(p.initiator_name || p.initiatorName).includes(s) ||
-      maybe(p.date).includes(s) ||
-      maybe(p.shift).includes(s) ||
-      maybe(p.value_stream_line || p.valueStreamLine || p.valueStream || p.value_stream).includes(s) ||
-      maybe(p.ticket_stage || p.ticketStage).includes(s) ||
-      maybe(p.short_description || p.shortDescription).includes(s) ||
-      maybe(p.status).includes(s)
-    );
-  });
-
-  const TableView = () => (
+/* -----------------------------
+   TableView component (top-level)
+   ----------------------------- */
+function TableView({ filtered, searchTerm, setSearchTerm, handleSelect }) {
+  return (
     <div className="card mt-4 full-height">
       <div className="card-body">
         <div className="d-flex justify-content-between align-items-center mb-3">
@@ -372,197 +89,748 @@ const [form, setForm] = useState({
             </thead>
             <tbody>
               {filtered.length > 0 ? (
-              filtered.map((psc) => (
-                <tr key={psc.id}>
-                  <td>
-                    <button className="btn btn-link p-0" onClick={() => handleSelect(psc)}>{psc.problemNumber || psc.problem_number}</button>
+                filtered.map((psc) => (
+                  <tr key={psc.id}>
+                    <td>
+                      <button className="btn btn-link p-0" onClick={() => handleSelect(psc)}>{psc.problemNumber || psc.problem_number}</button>
+                    </td>
+                    <td>{psc.initiatorName || psc.initiator_name}</td>
+                    <td>{psc.date ? new Date(psc.date).toLocaleDateString('en-CA') : ''}</td>
+                    <td>{psc.shift}</td>
+                    <td>{psc.valueStreamLine || psc.value_stream_line || psc.valueStream || psc.value_stream}</td>
+                    <td>{psc.ticketStage || psc.ticket_stage}</td>
+                    <td>{psc.shortDescription || psc.short_description}</td>
+                    <td>{psc.status}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="8" className="text-center">
+                    <div className="spinner-border text-primary" role="status">
+                      <span className="sr-only">Loading...</span>
+                    </div>
                   </td>
-                  <td>{psc.initiatorName || psc.initiator_name}</td>
-                  <td>{psc.date ? new Date(psc.date).toLocaleDateString('en-CA') : ''}</td>
-                  <td>{psc.shift}</td>
-                  <td>{psc.valueStreamLine || psc.value_stream_line || psc.valueStream || psc.value_stream}</td>
-                  <td>{psc.ticketStage || psc.ticket_stage}</td>
-                  <td>{psc.shortDescription || psc.short_description}</td>
-                  <td>{psc.status}</td>
                 </tr>
-              ))
-            ) : (
-              <tr>
-              <td colSpan="8" className="text-center">
-      <div className="spinner-border text-primary" role="status">
-        <span className="sr-only">Loading...</span>
-      </div>
-      </td>
-      </tr>
-            )
-              }
+              )}
             </tbody>
           </table>
         </div>
       </div>
     </div>
   );
+}
 
-  const PreviewView = () => {
-    if (!selected) return null;
-    const assignedDept = selected.corrective_action?.corrective_assign_to
-      || selected.correctiveAction?.corrective_assign_to
-      || selected.corrective_assign_to
-      || '';
-    const user = (() => { try { return JSON.parse(localStorage.getItem('dcmsUser')); } catch (e) { return null; } })();
-    const userDept = user?.dept_id || user?.department || user?.dept_name || user?.dept_name || '';
-    const stage = (selected.ticket_stage || selected.ticketStage || '');
-    const hasAcceptedCM = selected.root_cause?.countermeasures?.some(cm => cm.status === 'Accepted');
-    const canShowForm = !hasAcceptedCM; // Show button until any CM is accepted
-    return (
-      <PSCFullView
-        psc={selected}
-        onClose={() => {
-          setShowPreview(false);
-          setSelected(null);
-        }}
-        actions={canShowForm ? (
-          <div>
-                        <button className="btn btn-primary mr-2" onClick={() => { setShowForm(true); setShowPreview(false); setActiveTab(selected.root_cause ? 'cm' : 'root'); }}>Add Root Cause</button>
-
-          </div>
-        ) : null}
-      />
-    );
-  };
-
-  const FormView = () => {
-    if (!selected) return null;
-    const disableRootFields = !!selected.root_cause; // when root cause exists, we do not show root tab
-    const countermeasures = root.countermeasures || [];
-    const lastIdx = countermeasures.length ? countermeasures.length - 1 : 0;
-    const latest = countermeasures[lastIdx] || { id: null, description: '', targetDate: '', type: '', cm_status: 'Pending' };
-
-    // If a root cause already exists, only show CM tab per requirement
-    const showRootTab = !selected.root_cause;
-
-    return (
-      <div className="card full-height">
-        <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
-       <div class="d-flex justify-content-between align-items-center mb-3">
-    <div>
-        <h4>PSC: {selected.problem_number || selected.problemNumber}</h4>
-        <div className="mb-2"><strong>Short Desc:</strong> {selected.short_description || selected.shortDescription}</div>
-    </div>
-    
-    <button type="button" className="btn btn-danger" onClick={() => { setShowForm(false); setShowPreview(true); }}>Back</button>
-</div>
-          <Tabs activeKey={activeTab} onSelect={(k) => setActiveTab(k)} className="mb-3">
-            {showRootTab && (
-              <Tab eventKey="root" title="Root Cause Analysis">
-                <form onSubmit={saveRootAndNext}>
-                  <div className="form-group">
-                    <label>Symptom</label>
-                    <input name="symptom" value={root.symptom || ''} onChange={handleChange} className="form-control" />
-                  </div>
-
-                  <div className="form-row">
-                    {[1,2,3,4,5].map(i => (
-                      <div className="form-group col-md-4" key={i}>
-                        <label>Why {i} {i <= 3 && <span style={{color:'red'}}>*</span>}</label>
-                        <textarea name={`why${i}`} value={root[`why${i}`] || ''} onChange={handleChange} className="form-control" rows={4} />
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="form-group">
-                    <label>Final Cause <span style={{color:'red'}}>*</span></label>
-                    <textarea name="finalCause" value={root.finalCause || ''} onChange={handleChange} className="form-control" rows={3} required />
-                  </div>
-
-                  <div className="fixed-card-footer text-right p-3 border-top bg-white">
-                   
-                    <button type="button" className="btn btn-primary ml-2" onClick={saveRootAndNext}>Save Root Cause & Next</button>
-                  </div>
-                </form>
-              </Tab>
-            )}
-
-            <Tab eventKey="cm" title="Countermeasure & Effect Check">
-              <h5><b>Countermeasure History</b></h5>
-               <div>
-                <h5><b>Add Countermeasure</b></h5>
-                <div className='form-row'>
-                <label>Description</label>
-                <textarea className="form-control" value={latest.description || ''} onChange={(e) => handleCountermeasureChange('description', e.target.value)} rows={3} />
-                               
-
-                </div>
-                <div className='form-row'>
-                  <div className='col-md-6'>
-                    <label className="mt-2">Target Date</label>
-                    <input type="date" className="form-control" value={latest.targetDate || ''} onChange={(e) => handleCountermeasureChange('targetDate', e.target.value)} />
-</div>
-                  <div className='col-md-6'>
-                <label className="mt-2">Type</label>
-                <input className="form-control" readOnly value={latest.type || ''} />
-</div>
-</div>
-                <div className="mt-3">
-                  {/* Only one "Save Countermeasure" button per requirement */}
-                  <button type="button" className="btn btn-primary" onClick={saveCountermeasure}>Save Countermeasure</button>
-
-                  <small className="form-text text-muted mt-2 d-block">Click "Save Countermeasure" to persist to history. Use "Comments" to add/view comments.</small>
-                </div>
-              </div>
-
-              <div className="table-responsive mb-3">
-                <table className="table table-bordered">
-                  <thead>
-                    <tr>
-                      <th>Description</th>
-                      <th>Target Date</th>
-                      <th>Type</th>
-                      <th>Status</th>
-                      <th>Comments</th>
-                    </tr>
-                  </thead>
-                 <tbody>
-  {countermeasures.filter(cm => cm.id).length ? (
-    countermeasures.filter(cm => cm.id).map((cm, idx) => (
-      <tr key={cm.id || idx + 1}>
-        <td>{cm.description}</td>
-        <td>{cm.targetDate}</td>
-        <td>{cm.type}</td>
-        <td>{badgeForStatus(cm.cm_status)}</td>
-        <td>
-          <button
-            type="button"
-            className="btn btn-link p-0"
-            onClick={() => openCommentsDialog(cm)}
-          >
-            Comments
-          </button>
-        </td>
-      </tr>
-    ))
-  ) : (
-    <tr>
-      <td colSpan={5} className="text-center">No countermeasures yet</td>
-    </tr>
-  )}
-</tbody>
-
-                </table>
-              </div>
-
-             
-   </Tab>
-          </Tabs>
+/* -----------------------------
+   PreviewView component (top-level)
+   ----------------------------- */
+function PreviewView({ selected, user, setShowPreview, setSelected, setShowForm, setActiveTab ,loadremHistory,remRemarks}) {
+  if (!selected) return null;
+  const hasAcceptedCM = selected.root_cause?.countermeasures?.some(cm => cm.status === 'Accepted');
+  const canShowForm = !hasAcceptedCM;
+  return (
+    <PSCFullView
+      psc={selected}
+      onClose={() => {
+        setShowPreview(false);
+        setSelected(null);
+      }}
+      actions={canShowForm ? (
+        <div>
+          <button className="btn btn-primary mr-2" onClick={() => { setShowForm(true); setShowPreview(false); setActiveTab(selected.root_cause ? 'cm' : 'root'); loadremHistory();}}>Add Root Cause</button>
         </div>
+      ) : null}
+    />
+  );
+}
+ 
+const getCmKey = (cm, idx) => {
+  if (cm.id) return `id-${cm.id}`;
+  if (cm.tempId) return cm.tempId;
+  return `temp-${idx}`; // changed from `idx-${idx}` to `temp-${idx}`
+};
+
+
+/* -----------------------------
+   FormView component (top-level)
+   ----------------------------- */
+function FormView({
+  selected,
+  root,
+  setShowForm,
+  setShowPreview,
+  activeTab,
+  setActiveTab,
+  handleChange,
+  saveRootAndNext,
+  countermeasures,
+  latest,
+  handleCountermeasureChange,
+  saveCountermeasure,
+  loadremHistory,
+  remRemarks,
+  uiState,
+  handleActionToggle,
+  handleRemarksChange,
+  openCommentsDialog,
+  badgeForStatus,
+   showAddCm,     
+  setShowAddCm,
+    setRoot,     
+  setUiState, 
+  setText,      
+  setRows      
+}) {
+  if (!selected) return null;
+  const showRootTab = !selected.root_cause;
+
+  // build rootTab and cmTab inline (hooks are allowed here if needed)
+  const rootTab = (
+    <Tab eventKey="root" title="Root Cause Analysis">
+      <form onSubmit={saveRootAndNext}>
+        <div className="form-group">
+          <label>Symptom</label>
+          <input name="symptom" value={root.symptom || ''} onChange={handleChange} className="form-control" />
+        </div>
+
+        <div className="form-row">
+          {[1, 2, 3, 4, 5].map(i => (
+            <div className="form-group col-md-4" key={i}>
+              <label>Why {i} {i <= 3 && <span style={{ color: 'red' }}>*</span>}</label>
+              <textarea name={`why${i}`} value={root[`why${i}`] || ''} onChange={handleChange} className="form-control" rows={4} />
+            </div>
+          ))}
+        </div>
+
+        <div className="form-group">
+          <label>Final Cause <span style={{ color: 'red' }}>*</span></label>
+          <textarea name="finalCause" value={root.finalCause || ''} onChange={handleChange} className="form-control" rows={3} required />
+        </div>
+
+        <div className="fixed-card-footer text-right p-3 border-top bg-white">
+          <button type="button" className="btn btn-primary ml-2" onClick={saveRootAndNext}>Save Root Cause & Next</button>
+        </div>
+      </form>
+    </Tab>
+  );
+
+ 
+
+  const cmTab = (
+    
+    <Tab eventKey="cm" title="Countermeasure & Effect Check">
+     {(showAddCm)  && (
+        console.log('Rendering Add Countermeasure section', latest,showAddCm),
+  <> 
+      <h5><b>Countermeasure History</b></h5>
+
+      <h5><b>Add Countermeasure</b></h5>
+      <CMInputRow cm={latest} onChange={handleCountermeasureChange} />
+        </>
+)}
+      <div className="mt-3">
+        <button type="button" className="btn btn-primary" onClick={() => {saveCountermeasure(); }}>Save Countermeasure</button>
       </div>
-    );
+
+      <div className="table-responsive mb-3 mt-3">
+        <table className="table table-bordered">
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th>Target Date</th>
+              <th>Type</th>
+              <th>Status</th>
+              {/* <th>Comments</th> */}
+              <th>Action</th>
+              <th>Remarks</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(countermeasures.filter(cm => cm.id).length) ? (
+              countermeasures.filter(cm => cm.id).map((cm, idx) => {
+                // const cmKey = cm.id ? `id-${cm.id}` : (cm.tempId || `idx-${idx}`);
+                  // const cmKey = getCmKey(cm, idx);  
+                  const cmKey = getCmKey(cm, idx);
+                 console.log(`Rendering CM row: index=${idx}, cmKey=${cmKey}`, cm, uiState[cmKey]);
+                return (
+                  <tr key={cmKey}>
+                    <td>{cm.description}</td>
+                    <td>{cm.targetDate}</td>
+                    <td>{cm.type}</td>
+                    <td>{badgeForStatus(cm.cm_status)}</td>
+                    {/* <td>
+                      <button type="button" className="btn btn-link p-0" onClick={() => openCommentsDialog(cm)}>Comments</button>
+                    </td> */}
+                    <td>
+                      <input type="checkbox" checked={uiState[cmKey]?.actionTaken || false} onChange={(e) => handleActionToggle(cmKey, e.target.checked)} />
+                    </td>
+                    <td>
+                      {uiState[cmKey]?.showRemarks ? (
+                        <input type="text" className="form-control" value={uiState[cmKey]?.remarks || ''} onChange={(e) => handleRemarksChange(cmKey, e.target.value)} placeholder="Enter remarks" />
+                      ) : null}
+                    </td>
+                  </tr>
+                );
+              })
+            ) : (
+              <tr>
+                <td colSpan={7} className="text-center">No countermeasures yet</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+       <div className="mb-3">
+          <label>Remarks</label>
+          <textarea
+            className="form-control"
+            value={latest.comments || ''}
+            rows={3} readOnly style={{ minHeight: '100px', maxHeight: '300px' }}
+          />
+        </div>
+
+        <div className="mb-3">
+          <label>Remarks</label>
+          <textarea
+            className="form-control"
+            value={remRemarks.map(r => r.reasons).join("\n")}
+            rows={3} readOnly style={{ minHeight: '100px', maxHeight: '300px' }}
+          />
+        </div>
+    </Tab>
+  );
+
+  return (
+    <div className="card full-height">
+      <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+        <div className="d-flex justify-content-between align-items-center mb-3">
+          <div>
+            <h4>PSC: {selected.problem_number || selected.problemNumber}</h4>
+            <div className="mb-2"><strong>Short Desc:</strong> {selected.short_description || selected.shortDescription}</div>
+          </div>
+
+          <button type="button" className="btn btn-danger" onClick={() => { setShowForm(false); setShowPreview(true); setRoot({
+      symptom: '',
+      finalCause: '',
+      why1: '',
+      why2: '',
+      why3: '',
+      why4: '',
+      why5: '',
+      countermeasures: [makeEmptyCm('temp-0')]
+    });
+    setUiState({});
+    setShowAddCm(false);
+    setText('');
+    setRows([]);}}>Back</button>
+        </div>
+
+        <Tabs activeKey={activeTab} onSelect={(k) => setActiveTab(k)} className="mb-3">
+          {showRootTab && rootTab}
+          {cmTab}
+        </Tabs>
+      </div>
+    </div>
+  );
+}
+
+/* -----------------------------
+   RootCause (main) component
+   ----------------------------- */
+export default function RootCause() {
+  // --- all the state & handlers (kept same as your last uploaded file) ---
+
+
+  const [pscs, setPscs] = useState([]);
+  const [text, setText] = useState('');
+  const [rows, setRows] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [uiState, setUiState] = useState({});
+  const [showAddCm, setShowAddCm] = useState(false);
+  const [root, setRoot] = useState({
+    symptom: '',
+    finalCause: '',
+    why1: '',
+    why2: '',
+    why3: '',
+    why4: '',
+    why5: '',
+    countermeasures: [makeEmptyCm('temp-0')]
+  });
+  const [form, setForm] = useState({ description: '', date: '', address: '' });
+  const [reassign, setReassign] = useState({ remarks: '', assignTo: '' });
+  const [showReassignSimple, setShowReassignSimple] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [departments, setDepartments] = useState([]);
+  const [escalations, setEscalations] = useState([]);
+  const [activeEsc, setActiveEsc] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const canEdit = useCanEdit(selected, activeEsc);
+  const [activeTab, setActiveTab] = useState('root');
+  const [showCommentsDialog, setShowCommentsDialog] = useState(false);
+  const [selectedCMForComments, setSelectedCMForComments] = useState(null);
+  const [cmHistory, setCmHistory] = useState([]);
+  const [user, setUser] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('dcmsUser') || 'null'); } catch (e) { return null; }
+  });
+
+  // Reuse handlers from uploaded file (kept identical)
+  useEffect(() => {
+    fetchPscs();
+    loadEscalations().then(list => setEscalations(list));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (selected) refreshPsc(selected.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected]);
+
+  // Automatically show Add Countermeasure section if latest CM has empty comments
+useEffect(() => {
+  const countermeasures = root.countermeasures || [];
+  const lastIdx = countermeasures.length ? countermeasures.length - 1 : 0;
+  const latest = countermeasures[lastIdx] || makeEmptyCm('temp-0');
+
+  if (!latest.comments || latest.comments.trim() === '') {
+    setShowAddCm(true);
+  } else {
+    setShowAddCm(false);
+  }
+}, [root.countermeasures]);
+
+
+  const fetchPscs = useCallback(async () => {
+    try {
+      // const res = await axios.get('/api/psc');
+      const user = (() => {
+            try { return JSON.parse(localStorage.getItem('dcmsUser')); }
+            catch (e) { return null; }
+          })();
+          const userRespId = user?.user_resp_id || user?.userresp || null;
+          console.log("Fetch Pscs userRespId :", userRespId);
+          const res = await axios.get('/api/psc', {
+            params: { userRespId }
+          });
+      setPscs(res.data || []);
+    } catch (e) {
+      console.warn('fetch pscs failed', e);
+    }
+  }, []);
+
+   const fetchDepartments = useCallback(async () => {
+      try {
+        const res = await axios.get('/api/department');
+        setDepartments(res.data || []);
+      } catch (e) {
+        console.warn('dept load failed', e);
+      }
+    }, []);
+
+  const refreshPsc = useCallback(async (pscId) => {
+    try {
+      const res = await axios.get(`/api/psc/${pscId}`);
+      if (!res.data) return;
+      const joined = res.data;
+      if (joined.root_cause) {
+        const rc = joined.root_cause;
+        const cmsFromApi = (rc.countermeasures || []).map((cm, i) => ({
+          id: cm.id,
+          tempId: cm.id ? null : `temp-api-${i}-${Date.now()}`,
+          description: cm.description || cm.countermeasure || '',
+          targetDate: cm.targetDate || cm.target_date || '',
+          type: cm.type || '',
+          cm_status: cm.cm_status || cm.status || 'Pending',
+          createdBy: cm.createdBy || cm.created_by || null,
+          createdAt: cm.createdAt || cm.created_at || null,
+          comments: cm.comments ||  ''
+        }));
+
+        setRoot({
+          symptom: rc.symptom || '',
+          finalCause: rc.final_cause || '',
+          why1: rc.why1 || '',
+          why2: rc.why2 || '',
+          why3: rc.why3 || '',
+          why4: rc.why4 || '',
+          why5: rc.why5 || '',
+          countermeasures: cmsFromApi.length ? cmsFromApi : [makeEmptyCm('temp-0')]
+        });
+
+const rebuiltUi = {};
+(cmsFromApi.length ? cmsFromApi : [makeEmptyCm('temp-0')]).forEach((cm, idx) => {
+  const cmKey = getCmKey(cm, idx);
+  rebuiltUi[cmKey] = {
+    actionTaken: false,
+    showRemarks: false,
+    remarks: cm.remarks || ""  // <-- include existing remarks if any
   };
+});
+setUiState(rebuiltUi);
+
+
+
+        setActiveTab('cm');
+      } else {
+        setRoot(prev => ({ ...prev, countermeasures: prev.countermeasures && prev.countermeasures.length ? prev.countermeasures : [makeEmptyCm('temp-0')] }));
+        setActiveTab('root');
+      }
+    } catch (err) {
+      console.warn('refreshPsc failed', err);
+    }
+  }, []);
+
+  const handleSelect = useCallback((psc) => {
+    setSelected(psc);
+    setShowPreview(true);
+    setShowForm(false);
+    if (!escalations.length) {
+      loadEscalations().then(list => {
+        setEscalations(list);
+        setActiveEsc(computeEscalationForPsc(psc, list));
+      });
+    } else {
+      setActiveEsc(computeEscalationForPsc(psc, escalations));
+    }
+  }, [escalations]);
+
+  const handleChange = useCallback((e) => {
+    const { name, value } = e.target;
+    setRoot(prev => ({ ...prev, [name]: value }));
+  }, []);
+
+  const handleCountermeasureChange = useCallback((field, value) => {
+    setRoot(prev => {
+      const cms = Array.isArray(prev.countermeasures) ? [...prev.countermeasures] : [];
+      if (!cms.length) cms.push(makeEmptyCm('temp-0'));
+      const idx = cms.length - 1;
+      const last = { ...(cms[idx] || makeEmptyCm(`temp-${Date.now()}`)) };
+      last[field] = value;
+
+      if (field === 'targetDate') {
+        try {
+          const diff = (new Date(value) - new Date()) / (1000 * 60 * 60 * 24);
+          last.type = diff > 7 ? 'Long term corrective action' : 'Short term corrective action';
+        } catch (err) {
+          last.type = '';
+        }
+      }
+
+      cms[idx] = last;
+      return { ...prev, countermeasures: cms };
+    });
+  }, []);
+
+  const saveRootAndNext = useCallback(async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!selected) return;
+    if (!root.why1 || !root.why2 || !root.why3) return alert('Why 1, Why 2 and Why 3 are required.');
+    if (!root.finalCause || !root.finalCause.toString().trim()) return alert('Final Cause is required.');
+
+    const userId = user?.id || null;
+    const cmsToSend = (root.countermeasures || []).filter(cm => (cm.description || '').toString().trim()).map(cm => ({
+      description: cm.description,
+      targetDate: cm.targetDate,
+      type: cm.type,
+      created_by: userId
+    }));
+
+    const payload = {
+      why1: root.why1,
+      why2: root.why2,
+      why3: root.why3,
+      why4: root.why4,
+      why5: root.why5,
+      final_cause: root.finalCause,
+      filled_by: userId,
+      countermeasures: cmsToSend
+    };
+
+    try {
+      await axios.put(`/api/psc/${selected.id}/rootcause`, payload);
+      await refreshPsc(selected.id);
+      setActiveTab('cm');
+    } catch (err) {
+      console.error('saveRootAndNext failed', err);
+      alert('Failed to save root cause. See console.');
+    }
+  }, [root, selected, user, refreshPsc]);
+ const [remRemarks, setremHistory] = useState([]);
+
+const loadremHistory = useCallback(async () => {
+  const res = await axios.get(`/api/psc/${selected.id}/countremark`);
+   setremHistory(res.data);
+
+  const reasonsText = res.data
+    .map(r => r.reasons)        // NOT r.res.data[0].reasons
+    .filter(Boolean)
+    .join("\n");
+});
+   
+ 
+  const saveCountermeasure = useCallback(async () => {
+    if (!selected) return;
+    const cms = root.countermeasures || [];
+
+  //Filter out empty countermeasures
+  const cmsToSave = cms.filter(cm => (cm.description || '').trim());
+
+  if (!cmsToSave.length) return alert('Please enter at least one Countermeasure.');
+  const userRespId = user?.user_resp_id || user?.userresp || null;
+   const payloads = cmsToSave.map((cm, idx) => ({
+    description: cm.description,
+    targetDate: cm.targetDate,
+    type: cm.type || '',
+    comments: cm.remarks || '', // <-- now remarks are saved correctly
+    created_by: user?.id || null,
+    userRespId:userRespId
+  }));
+  console.log('Saving countermeasures:', payloads);
+  const newEntry = (root.countermeasures || [])
+  .filter(cm => (cm.description || '').trim()) // ignore empty
+  .map(cm => ({
+    description: cm.description,
+    targetDate: cm.targetDate,
+    type: cm.type,
+    remarks: cm.remarks || ''
+    
+  }));
+
+    try {
+       const savedCms = [];
+       for (const payload of payloads) {
+      const res = await axios.post(`/api/psc/${selected.id}/countermeasure`, payload);
+      console.log(res.data)
+      savedCms.push(res.data);// capture saved countermeasure with latest comments
+    }
+      await refreshPsc(selected.id);
+      setText('');
+      setRows(prev => [...prev, newEntry]);
+      // setRoot(prev => {
+      //   const updated = (prev.countermeasures || []).map(c => ({ ...c }));
+      //   const lastAfter = updated[updated.length - 1] || {};
+      //   if (lastAfter && (lastAfter.description || '').toString().trim()) {
+      //     updated.push(makeEmptyCm(`temp-${Date.now()}`));
+      //   }
+      //   return { ...prev, countermeasures: updated };
+      // });
+
+      setRoot(prev => {
+          const updated = (prev.countermeasures || []).map((c, idx) => ({
+            ...c,
+            comments: savedCms[idx]?.comments || c.comments || ''
+          }));
+          const lastAfter = updated[updated.length - 1] || {};
+          if (lastAfter && (lastAfter.description || '').trim()) {
+            updated.push(makeEmptyCm(`temp-${Date.now()}`));
+          }
+          return { ...prev, countermeasures: updated };
+      });
+      //  setLatest(savedCms[savedCms.length - 1] || latest);
+      // Hide the add countermeasure section
+      // if (savedCms[savedCms.length - 1]?.comments?.trim()) {
+        setShowAddCm(false);
+      // }
+    } catch (err) {
+      console.error('saveCountermeasure failed', err);
+      alert('Failed to save countermeasure. See console.');
+    }
+  }, [root, selected, user, refreshPsc]);
+
+  const openCommentsDialog = useCallback(async (cm) => {
+    if (!cm) return;
+    if (!cm.id) {
+      alert('Please save this Countermeasure before adding comments.');
+      return;
+    }
+
+    try {
+      const res = await axios.get(`/api/countermeasure/${cm.id}/history`);
+      setSelectedCMForComments(cm);
+      setCmHistory((res.data || []).map(h => ({
+        id: h.id,
+        type: h.type,
+        text: h.text,
+        logged_by: h.logged_by,
+        logged_by_name: h.logged_by_name,
+        timestamp: h.timestamp
+      })));
+      setShowCommentsDialog(true);
+    } catch (err) {
+      console.error('openCommentsDialog failed', err);
+      setSelectedCMForComments(cm);
+      setCmHistory([]);
+      setShowCommentsDialog(true);
+    }
+  }, []);
+
+  const submitCommentForSelectedCM = useCallback(async (commentText) => {
+    if (!selectedCMForComments || !selectedCMForComments.id) return alert('Save the countermeasure first.');
+    try {
+      await axios.post(`/api/countermeasure/${selectedCMForComments.id}/comment`, {
+        comment: commentText,
+        logged_by: user?.id || null
+      });
+      await refreshPsc(selected.id);
+      setShowCommentsDialog(false);
+      setSelectedCMForComments(null);
+      setCmHistory([]);
+    } catch (err) {
+      console.error('submitComment failed', err);
+      alert('Failed to submit comment.');
+    }
+  }, [selectedCMForComments, selected, user, refreshPsc]);
+
+  const badgeForStatus = useCallback((status) => {
+    const s = (status || '').toLowerCase();
+    const className =
+      s === 'accepted' ? 'badge badge-success' :
+        s === 'for validation' ? 'badge badge-warning' :
+          s === 'rejected' ? 'badge badge-danger' :
+            'badge badge-secondary';
+    return <span className={className}>{status || 'Pending'}</span>;
+  }, []);
+
+  const removeCountermeasureRow = useCallback((index) => {
+    setRoot(prev => {
+      const cms = (prev.countermeasures || []).map((c) => ({ ...c }));
+      cms.splice(index, 1);
+      return { ...prev, countermeasures: cms.length ? cms : [makeEmptyCm(`temp-${Date.now()}`)] };
+    });
+  }, []);
+
+  const handleReassignChange = useCallback((e) => {
+    const { name, value } = e.target;
+    setReassign(prev => {
+      const next = { ...prev, [name]: value };
+      if (name === 'targetDate') {
+        try {
+          const diff = (new Date(value) - new Date()) / (1000 * 60 * 60 * 24);
+          next.type = diff > 7 ? 'Long term corrective action' : 'Short term corrective action';
+        } catch (err) {
+          next.type = '';
+        }
+      }
+      return next;
+    });
+  }, []);
+
+  const submitReassign = useCallback(async () => {
+    if (!selected) return;
+    try {
+      const payload = { corrective_action: reassign, status: 'Work in Progress', ticket_stage: 'Do' };
+      await axios.put(`/api/psc/${selected.id}`, payload);
+      setReassign({ countMeasure: '', targetDate: '', type: '', remarks: '', assignTo: '' });
+      setShowPreview(false);
+      setSelected(null);
+      fetchPscs();
+    } catch (err) {
+      console.error('submit reassign failed', err);
+    }
+  }, [reassign, selected, fetchPscs]);
+
+  const filtered = useMemo(() => pscs.filter((p) => {
+    const s = (searchTerm || '').toLowerCase();
+    const maybe = (v) => (v || '').toString().toLowerCase();
+    return (
+      maybe(p.problem_number || p.problemNumber).includes(s) ||
+      maybe(p.initiator_name || p.initiatorName).includes(s) ||
+      maybe(p.date).includes(s) ||
+      maybe(p.shift).includes(s) ||
+      maybe(p.value_stream_line || p.valueStreamLine || p.valueStream || p.value_stream).includes(s) ||
+      maybe(p.ticket_stage || p.ticketStage).includes(s) ||
+      maybe(p.short_description || p.shortDescription).includes(s) ||
+      maybe(p.status).includes(s)
+    );
+  }), [pscs, searchTerm]);
+
+  const handleActionToggle = useCallback((id, isChecked) => {
+      console.log(`handleActionToggle: cmKey=${id}, checked=${isChecked}`);
+    setUiState(prev => ({
+      ...prev,
+      [id]: {
+        ...(prev[id] || {}),
+        actionTaken: isChecked,
+        showRemarks: isChecked,
+        remarks: isChecked ? (prev[id]?.remarks || "") : ""
+      }
+    }));
+  }, []);
+
+  const handleRemarksChange = useCallback((cmKey, value) => {
+  // Update uiState
+  setUiState(prev => {
+    const next = {
+      ...prev,
+      [cmKey]: {
+        ...(prev[cmKey] || {}),
+        remarks: value
+      }
+    };
+    console.log('Updated uiState:', next); // ✅ Log uiState after change
+    return next;
+  });
+
+  // Also update the countermeasure object itself
+  setRoot(prev => {
+    const updatedCms = prev.countermeasures.map((cm, idx) => {
+      if (getCmKey(cm, idx) === cmKey) {
+        console.log(`Updating CM object for cmKey=${cmKey}:`, { ...cm, remarks: value }); // ✅ Log CM being updated
+        return { ...cm, remarks: value }; // store remarks directly in cm
+      }
+      return cm;
+    });
+    return { ...prev, countermeasures: updatedCms };
+  });
+}, []);
+
+
+
+  // render
+  const countermeasures = root.countermeasures || [];
+  // const lastIdx = countermeasures.length ? countermeasures.length - 1 : 0;
+  // const latest = countermeasures[lastIdx] || makeEmptyCm('temp-0');
+  const latest = countermeasures.slice().reverse().find(cm => (cm.description || '').trim()) || makeEmptyCm('temp-0');
+ 
+
   return (
     <div>
-      {!showPreview && !showForm && <TableView />}
-      {showPreview && <PreviewView />}
-      {showForm && <FormView />}
+      {!showPreview && !showForm && (
+        <TableView filtered={filtered} searchTerm={searchTerm} setSearchTerm={setSearchTerm} handleSelect={handleSelect} />
+      )}
+      {showPreview && (
+        <PreviewView selected={selected} user={user} setShowPreview={setShowPreview} setSelected={setSelected} setShowForm={setShowForm} setActiveTab={setActiveTab}  loadremHistory={loadremHistory}  remRemarks={remRemarks}/>
+      )}
+      {showForm && (
+        <FormView
+          selected={selected}
+          root={root}
+          setShowForm={setShowForm}
+          setShowPreview={setShowPreview}
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          handleChange={handleChange}
+          saveRootAndNext={saveRootAndNext}
+          countermeasures={countermeasures}
+          latest={latest}
+          handleCountermeasureChange={handleCountermeasureChange}
+          saveCountermeasure={saveCountermeasure}
+          loadremHistory={loadremHistory}
+          remRemarks={remRemarks}
+          uiState={uiState}
+          handleActionToggle={handleActionToggle}
+          handleRemarksChange={handleRemarksChange}
+          openCommentsDialog={openCommentsDialog}
+          badgeForStatus={badgeForStatus}
+          showAddCm={showAddCm}               // ✅ pass it here
+    setShowAddCm={setShowAddCm}  
+    setRoot={setRoot}
+  setUiState={setUiState}
+  setText={setText}
+  setRows={setRows}
+        />
+      )}
 
       <CommentDialog
         show={showCommentsDialog}

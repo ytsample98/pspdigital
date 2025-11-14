@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import PSCFullView from './PSCFullView';
-import  sendNotification  from './shared/NavBar';
+import sendNotification from './shared/NavBar';
 
 
 import toast, { Toaster } from 'react-hot-toast';
@@ -13,21 +13,27 @@ export default function PSCList() {
   const [showPreview, setShowPreview] = useState(false);
   const [selected, setSelected] = useState(null);
   const [masters, setMasters] = useState({ shifts: [], valuestreams: [], lines: [] });
-const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const emptyForm = () => ({
     problem_number: '', searchTerm: '', initiator_name: '', date: '', shift: '', value_stream_line: '',
-    line_id: '', short_description: '', problem_description: '', qty_affected: '',problem_type:'',
+    line_id: '', short_description: '', problem_description: '', qty_affected: '', problem_type: '',
     part_affected: '', supplier: '', status: 'Open'
   });
-const sendNotification = (message) => {
-  window.dispatchEvent(new CustomEvent("psc-notification", { detail: message }));
-};
-// const sendNotification = (cardId, message) => {
-//   window.dispatchEvent(
-//     new CustomEvent("psc-notification", { detail: { cardId, message } })
-//   );
-// };
+  // const sendNotification = (message) => {
+  //   window.dispatchEvent(new CustomEvent("psc-notification", { detail: message }));
+  // };
+  // const sendNotification = (cardId, message) => {
+  //   window.dispatchEvent(
+  //     new CustomEvent("psc-notification", { detail: { cardId, message } })
+  //   );
+  // };
   const [form, setForm] = useState(emptyForm());
+
+  const user = (() => {
+    try { return JSON.parse(localStorage.getItem('dcmsUser')); }
+    catch (e) { return null; }
+  })();
+  const userRespId = user?.user_resp_id || user?.userresp || null;
 
   useEffect(() => { fetchPscs(); fetchMasters(); }, []);
 
@@ -63,7 +69,11 @@ const sendNotification = (message) => {
   };
 
   const fetchPscs = async () => {
-    const res = await axios.get('/api/psc');
+    console.log("Fetch Pscs userRespId :", userRespId);
+    // const res = await axios.get('/api/psc');
+    const res = await axios.get('/api/psc', {
+      params: { userRespId }
+    });
 
     setPscs(res.data || []);
   };
@@ -76,6 +86,7 @@ const sendNotification = (message) => {
       const num = parseInt((p.problem_number || p.problemNumber || '').replace(/[^0-9]/g, ''), 10);
       return isNaN(num) ? acc : Math.max(acc, num);
     }, 100);
+    console.log(max)
     return `PSC${(max + 1).toString().padStart(3, '0')}`;
   };
 
@@ -101,56 +112,54 @@ const sendNotification = (message) => {
     } catch (e) { /* ignore */ }
     return '';
   };
-const today = new Date();
-const yyyy = today.getFullYear();
-const mm = String(today.getMonth() + 1).padStart(2, '0');
-const dd = String(today.getDate()).padStart(2, '0');
-const localDate = `${yyyy}-${mm}-${dd}`;
-const handleSubmit = async (e) => {
-  e.preventDefault();
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  const localDate = `${yyyy}-${mm}-${dd}`;
 
-  try {
-    const user = (() => { 
-      try { return JSON.parse(localStorage.getItem('dcmsUser')); } 
-      catch (e) { return null; } 
-    })();
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        ...form,
+        status: 'Open',
+        ticket_stage: 'Plan',
+        problem_number: form.problem_number || generateProblemNumber(),
+        initiator_name:
+          form.initiator_name ||
+          (user && (user.userName || user.username || user.name || user.usermail)) ||
+          '',
+        date: localDate,
+      };
 
-    const payload = {
-      ...form,
-      status: 'Open',
-      ticket_stage: 'Plan',
-      problem_number: form.problem_number || generateProblemNumber(),
-      initiator_name:
-        form.initiator_name ||
-        (user && (user.userName || user.username || user.name || user.usermail)) ||
-        '',
-      date: localDate,
-    };
+      await axios.post('/api/psc', payload);
+      generateProblemNumber()
+      //sendNotification('Card Created:101');
+      //sendNotification(`${form.problem_number}`);
 
-     await axios.post('/api/psc', payload);
-     sendNotification('Card Created:101');
-    //sendNotification(`${form.problem_number}`);
+      fetchPscs();
+      setForm(emptyForm());
+      setShowForm(false);
+      window.location.reload();
 
-    fetchPscs();
-    setForm(emptyForm());
-     setShowForm(false());
 
-  } catch (error) {
-    console.error('Error saving PSC:', error);
-    toast.error('❌ Failed to create PSC card');
-  }
-};
+    } catch (error) {
+      console.error('Error saving PSC:', error);
+      toast.error('❌ Failed to create PSC card');
+    }
+  };
 
 
   const openPreview = (psc) => { setSelected(psc); setShowPreview(true); setShowForm(false); };
 
   const openFormForCreate = () => {
-    const user = (() => { try { return JSON.parse(localStorage.getItem('dcmsUser')); } catch(e){return null;} })();
+    const user = (() => { try { return JSON.parse(localStorage.getItem('dcmsUser')); } catch (e) { return null; } })();
     setForm({
       ...emptyForm(),
       problem_number: generateProblemNumber(),
       initiator_name: user && (user.userName || user.username || user.name || user.usermail) || '',
-      date:  localDate,
+      date: localDate,
       shift: detectShift(),
       line_id: ''
     });
@@ -165,7 +174,7 @@ const handleSubmit = async (e) => {
       <PSCFullView
         psc={selected}
         onClose={() => { setShowPreview(false); setSelected(null); }}
-        
+
       />
     );
   };
@@ -190,91 +199,91 @@ const handleSubmit = async (e) => {
   const renderTable = () => (
     <div className="card mt-4 full-height">
       <div className="card-body">
-      <div className="d-flex justify-content-between align-items-center mb-3">
-        <h4 className="card-title">Problem Solving Card List</h4>
+        <div className="d-flex justify-content-between align-items-center mb-3">
+          <h4 className="card-title">Problem Solving Card List</h4>
 
-        <div className="d-flex align-items-center" style={{ gap: '10px', width: '40%' }}>
-          <input
-            type="text"
-            className="form-control"
-            placeholder="Search..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-          <button type="button" className="btn btn-primary" onClick={openFormForCreate}>
-            + Add PSC
-          </button>
+          <div className="d-flex align-items-center" style={{ gap: '10px', width: '40%' }}>
+            <input
+              type="text"
+              className="form-control"
+              placeholder="Search..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            <button type="button" className="btn btn-primary" onClick={openFormForCreate}>
+              + Add PSC
+            </button>
+          </div>
+        </div>
+
+        {/* Table */}
+        <div className='table-responsive'>
+          <table className='table table-bordered table-hover'>
+            <thead className='thead-light'>
+              <tr style={{ fontSize: '14px' }}>
+                <th>Problem No</th>
+                <th>Initiator</th>
+                <th>Date</th>
+                <th>Shift</th>
+                <th>Value Stream</th>
+                <th>Stage</th>
+                <th>Short Description</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+
+              {filteredPSCs.length > 0 ? (
+                filteredPSCs.map(psc => (
+                  <tr key={psc.id}>
+                    <td>
+                      <button
+                        className='btn btn-link p-0'
+                        onClick={() => openPreview(psc)}
+                      >
+                        {psc.problem_number || psc.problemNumber}
+                      </button>
+                    </td>
+                    <td>{psc.initiator_name || psc.initiatorName}</td>
+                    <td>{psc.date ? new Date(psc.date).toLocaleDateString('en-CA') : ''}</td>
+                    <td>{masters.shifts.find(s => String(s.id) === String(psc.shift))?.shift_name || psc.shift}</td>
+                    <td>{psc.value_stream_line}</td>
+                    <td>{psc.ticket_stage || psc.ticketStage}</td>
+                    <td>{psc.short_description || psc.shortDescription}</td>
+                    <td>{psc.status}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="8" className="text-center">
+                    <div className="spinner-border text-primary" role="status">
+                      <span className="sr-only">Loading...</span>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
-
-      {/* Table */}
-      <div className='table-responsive'>
-        <table className='table table-bordered table-hover'>
-          <thead className='thead-light'>
-            <tr style={{ fontSize: '14px' }}>
-              <th>Problem No</th>
-              <th>Initiator</th>
-              <th>Date</th>
-              <th>Shift</th>
-              <th>Value Stream</th>
-              <th>Stage</th>
-              <th>Short Description</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-             
-            {filteredPSCs.length > 0 ? (
-              filteredPSCs.map(psc => (
-                <tr key={psc.id}>
-                  <td>
-                    <button
-                      className='btn btn-link p-0'
-                      onClick={() => openPreview(psc)}
-                    >
-                      {psc.problem_number || psc.problemNumber}
-                    </button>
-                  </td>
-                  <td>{psc.initiator_name || psc.initiatorName}</td>
-                 <td>{psc.date ? new Date(psc.date).toLocaleDateString('en-CA') : ''}</td>
-                  <td>{masters.shifts.find(s => String(s.id) === String(psc.shift))?.shift_name || psc.shift}</td>
-                  <td>{psc.value_stream_line}</td>
-                  <td>{psc.ticket_stage || psc.ticketStage}</td>
-                  <td>{psc.short_description || psc.shortDescription}</td>
-                  <td>{psc.status}</td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                  <td colSpan="8" className="text-center">
-      <div className="spinner-border text-primary" role="status">
-        <span className="sr-only">Loading...</span>
-      </div>
-      </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
     </div>
   );
 
 
 
   const renderForm = () => (
-   <div className="card full-height">
-          <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+    <div className="card full-height">
+      <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
         <h4 className="mb-3">Create PSC</h4>
         <form className='form-sample' onSubmit={handleSubmit}>
           <div className='form-row'>
             <div className='form-group col-md-2'>
               <label>Problem Number</label>
-              <input className='form-control' 
-              name='problem_number' 
-              value={form.problem_number} 
-              onChange={e => setForm({ ...form, [e.target.name]: e.target.value })} 
-              placeholder='Problem Number' required readOnly />
+              <input className='form-control'
+                name='problem_number'
+                value={form.problem_number}
+                onChange={e => setForm({ ...form, [e.target.name]: e.target.value })}
+                placeholder='Problem Number' required readOnly />
             </div>
             <div className='form-group col-md-2'>
               <label>Initiator</label>
@@ -284,85 +293,85 @@ const handleSubmit = async (e) => {
               <label>Date</label>
               <input className='form-control' type='date' name='date' value={form.date} onChange={e => setForm({ ...form, [e.target.name]: e.target.value })} required />
             </div>
-                <div className='form-group col-md-2'>
-                  <label>Shift</label>
-                  <select className='form-control' name='shift' value={form.shift} onChange={handleChange}>
-                    <option value=''>-- Shift  --</option>
-                    {masters.shifts.map(s => <option key={s.id || s.shift_name} value={s.id}>{s.shift_name || s.name || s.shift}</option>)}
-                  </select>
-                </div>
+            <div className='form-group col-md-2'>
+              <label>Shift</label>
+              <select className='form-control' name='shift' value={form.shift} onChange={handleChange}>
+                <option value=''>-- Shift  --</option>
+                {masters.shifts.map(s => <option key={s.id || s.shift_name} value={s.id}>{s.shift_name || s.name || s.shift}</option>)}
+              </select>
+            </div>
             <div className='form-group col-md-2'>
               <label>Value Stream</label>
-                <select
-                  className="form-control"
-                  name="value_stream_line"
-                  value={form.value_stream_line}
-                  onChange={handleChange}
-                >
-                  <option value="">-- Value Stream --</option>
-                  {masters.valuestreams.map(v => (
-                    <option key={v.id} value={v.vl_code}>
-                      {v.vl_name}
-                    </option>
-                  ))}
-                </select>
+              <select
+                className="form-control"
+                name="value_stream_line"
+                value={form.value_stream_line}
+                onChange={handleChange}
+              >
+                <option value="">-- Value Stream --</option>
+                {masters.valuestreams.map(v => (
+                  <option key={v.id} value={v.vl_code}>
+                    {v.vl_name}
+                  </option>
+                ))}
+              </select>
 
             </div>
             <div className='form-group col-md-2'>
-              <label>Line</label>   
-                <select
-                  className="form-control"
-                    name="line_id"
-                    value={form.line_id}
-                  onChange={handleChange}
-                >
-                  <option value="">-- Line --</option>
-                    {masters.lines
-                      .filter(l => !form.value_stream_line || l.vl_code === form.value_stream_line)
-                      .map(l => (
-                        <option key={l.id} value={l.id}>
-                          {l.line_name}
-                        </option>
-                      ))}
-                </select>
+              <label>Line</label>
+              <select
+                className="form-control"
+                name="line_id"
+                value={form.line_id}
+                onChange={handleChange}
+              >
+                <option value="">-- Line --</option>
+                {masters.lines
+                  .filter(l => !form.value_stream_line || l.vl_code === form.value_stream_line)
+                  .map(l => (
+                    <option key={l.id} value={l.id}>
+                      {l.line_name}
+                    </option>
+                  ))}
+              </select>
 
             </div>
           </div>
           <div className='form-row'>
-            
+
             <div className='form-group col-md-4'>
               <label>Short Description</label>
-              <input className='form-control' 
-              name='short_description' 
-              value={form.short_description} 
-              onChange={handleChange} placeholder='Short Description' /></div>
-              <div className='form-group col-md-8'>
-            <label>Problem Description</label>
-            <textarea className='form-control' 
-            name='problem_description' 
-            value={form.problem_description} 
-            onChange={handleChange} placeholder='Problem Description' /></div>
-          
+              <input className='form-control'
+                name='short_description'
+                value={form.short_description}
+                onChange={handleChange} placeholder='Short Description' /></div>
+            <div className='form-group col-md-8'>
+              <label>Problem Description</label>
+              <textarea className='form-control'
+                name='problem_description'
+                value={form.problem_description}
+                onChange={handleChange} placeholder='Problem Description' /></div>
+
           </div>
           <div className='form-row'>
-           <div className='form-group col-md-3'>
-  <label>Problem Type</label>
-  <select
-    className='form-control'
-    name='problem_type'
-    value={form.problem_type}
-    onChange={handleChange}
-    required
-  >
-    <option value=''>-- Select KPI --</option>
-    <option value='S'>Safety</option>
-    <option value='Q'>Quality</option>
-    <option value='D'>Delivery</option>
-    <option value='C'>Check</option>
-    <option value='E'>Environment</option>
-  </select>
-</div>
-<div className='form-group col-md-3'>
+            <div className='form-group col-md-3'>
+              <label>Problem Type</label>
+              <select
+                className='form-control'
+                name='problem_type'
+                value={form.problem_type}
+                onChange={handleChange}
+                required
+              >
+                <option value=''>-- Select KPI --</option>
+                <option value='S'>Safety</option>
+                <option value='Q'>Quality</option>
+                <option value='D'>Delivery</option>
+                <option value='C'>Cost</option>
+                <option value='E'>Environment</option>
+              </select>
+            </div>
+            <div className='form-group col-md-3'>
               <label>Qty Affected</label>
               <input className='form-control' name='qty_affected' value={form.qty_affected} onChange={handleChange} placeholder='Qty Affected' /></div>
             <div className='form-group col-md-3'>
@@ -375,7 +384,7 @@ const handleSubmit = async (e) => {
               <label>Status</label>
               <input className='form-control' name='status' value={form.status} readOnly /></div>
           </div>
-            <div className="fixed-card-footer text-right p-3 border-top bg-white">
+          <div className="fixed-card-footer text-right p-3 border-top bg-white">
             <button className='btn btn-secondary  mr-2' type='button' onClick={() => { setShowForm(false); setForm(emptyForm()); }}>Cancel</button>
             <button className='btn btn-primary' type='submit'>Create</button>
           </div>
@@ -387,7 +396,7 @@ const handleSubmit = async (e) => {
   return (
     <div className="container-fluid">
       {showForm ? renderForm() : showPreview ? renderPreview() : renderTable()}
-      
+
     </div>
   );
 }
