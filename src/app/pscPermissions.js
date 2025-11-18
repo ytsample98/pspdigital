@@ -22,22 +22,46 @@ export function hoursSince(dateStr) {
   try {
     const then = new Date(dateStr);
     const diff = Date.now() - then.getTime();
-    return diff / (1000 * 60 * 60);
+    console.log('diff',diff / (1000 * 60 * 60*24) ,'')
+    return diff / (1000 * 60 * 60 * 24) ;//converted for days
+    
   } catch (e) { return 0; }
 }
 
-export function computeEscalationForPsc(psc, escalations) {
+export function computeEscalationForPsc(psc, escalations,user) {
   if (!psc || !escalations || escalations.length === 0) return null;
+  
+  const userRespId = user?.user_resp_id || user?.userresp || null;
 
   const hrs = hoursSince(psc.date || psc.created_at || psc.createdAt || new Date());
+  console.log(psc.created_at)
+  console.log('hrs',hrs)
+   
+  console.log('escala',escalations)
+   
 
   const sorted = escalations
     .map(e => ({ ...e, time_duration_num: Number(e.time_duration) || 0 }))
     .filter(e => !isNaN(e.time_duration_num))
     .sort((a, b) => a.time_duration_num - b.time_duration_num);
+  console.log('Sorted escalations by duration:', sorted)
 
-  const matched = sorted.filter(e => hrs >= e.time_duration_num);
-  return matched.length ? matched[matched.length - 1] : sorted[0];
+  // const matched = sorted.filter(e => hrs >= e.time_duration_num);
+ let matched = sorted.filter(
+      e =>  String(e.authority_id) == String(userRespId)
+    );
+      console.log('Matched by authority_id:', matched);
+
+  //   matched = matched.filter(e => hrs >= e.time_duration);
+  // console.log('Matched by authority_id AND hrs >= time_duration:', matched);
+
+  
+  // return matched.length ? matched[matched.length - 1] : sorted[0];
+  const selected = matched.length ? matched[matched.length - 1] : sorted[0];
+  console.log('Selected escalation:', selected);
+
+  return selected;
+
 }
 
 export function getControllerForStage(stage, escalation) {

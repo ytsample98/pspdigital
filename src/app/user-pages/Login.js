@@ -3,6 +3,8 @@ import { Form } from 'react-bootstrap';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
 import '../../assets/styles/Login.css';
+import { FaUser, FaKey
+,FaLock,FaEye, FaEyeSlash } from "react-icons/fa";
 
 /*
   UI-only changes:
@@ -12,9 +14,12 @@ import '../../assets/styles/Login.css';
 */
 
 class Login extends Component {
-  state = { email: "", password: "", error: "" };
+  // state = { email: "", password: "", error: "" };
+   state = { email: "", password: "", error: "",showPassword: false,
+ };
 
   handleSubmit = async (e) => {
+    console.log('Submitting login form');
     e.preventDefault();
     try {
       const res = await axios.post('/api/login', { usermail: this.state.email, password: this.state.password });
@@ -33,15 +38,23 @@ class Login extends Component {
   <div className="login-page">
     <div className="login-overlay">
       <div className="left-panel">
-        <div className="brand-area">
+        {/* <div className="brand-area">
           <div className="brand-copy">
             <h1>Shop Floor Management - Problem Solving Process</h1>
           </div>
-        </div>
+        </div> */}
       </div>
 
       <div className="right-panel">
-        
+        <div className="brand-area">
+          <div className="brand-copy">
+            <h1>
+  <span>Shop Floor Management - </span><br/>
+  <span>Problem Solving Process</span>
+</h1>
+
+          </div>
+        </div>
         <div className="signup-card glass-card">
           <div className="card-header text-center">
             {/* 👇 MAHLE logo inside signup box */}
@@ -58,8 +71,22 @@ class Login extends Component {
           </div>
 
           <Form className="pt-2" onSubmit={this.handleSubmit}>
+            <div style={{ position: "relative" }}>
+          <FaUser
+            style={{
+              position: "absolute",
+              top: "50%",
+              left: "10px",
+              transform: "translateY(-50%)",
+              color: "#608ed8ff",
+            }}
+          />
+
             <Form.Group>
+              
               <Form.Control
+style={{paddingLeft: "35px"}}
+
                 type="email"
                 placeholder="Email"
                 size="lg"
@@ -67,15 +94,47 @@ class Login extends Component {
                 required
               />
             </Form.Group>
+            </div>
+            <div style={{ position: "relative" }}>
+          <FaKey
+            style={{
+              position: "absolute",
+              top: "50%",
+              left: "10px",
+              transform: "translateY(-50%)",
+              color: "#608ed8ff",
+            }}
+          />
+          {/* Right Eye Icon */}
+  <span
+    onClick={() =>
+      this.setState({ showPassword: !this.state.showPassword })
+    }
+    style={{
+      position: "absolute",
+      top: "50%",
+      right: "12px",
+      transform: "translateY(-50%)",
+      cursor: "pointer",
+      color: "#888",
+      fontSize: "20px",
+      zIndex: 2,
+    }}
+  >
+    {this.state.showPassword ? <FaEyeSlash /> : <FaEye />}
+  </span>
             <Form.Group>
               <Form.Control
-                type="password"
+                // type="password"
+                style={{paddingLeft: "35px"}}
+                type={this.state.showPassword ? "text" : "password"}
                 placeholder="Password"
                 size="lg"
                 onChange={(e) => this.setState({ password: e.target.value })}
                 required
               />
             </Form.Group>
+            </div>
 
             {this.state.error && <p className="text-danger">{this.state.error}</p>}
 
@@ -101,7 +160,7 @@ class Login extends Component {
         fontSize: '14px',
       }}
     >
-      Powered by Yaanar
+      Powered by Yaanar Technologies Pvt Ltd.
     </footer>
   </div>
 );

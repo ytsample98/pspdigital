@@ -1,5 +1,5 @@
 // CorrectiveAction.js
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback,useMemo } from 'react';
 import axios from 'axios';
 import PSCFullView from './PSCFullView';
 import { loadEscalations, computeEscalationForPsc } from './pscPermissions';
@@ -10,6 +10,7 @@ export default function CorrectiveAction() {
   const [showForm, setShowForm] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [loading, setLoading] = useState(true);
   const [action, setAction] = useState({
     initialContainmentAction: '',
     doneBy: '',
@@ -39,17 +40,24 @@ export default function CorrectiveAction() {
 
 
   const fetchPscs = async () => {
-    const user = (() => {
-      try { return JSON.parse(localStorage.getItem('dcmsUser')); }
-      catch (e) { return null; }
-    })();
-    const userRespId = user?.user_resp_id || user?.userresp || null;
-    console.log("Fetch Pscs userRespId :", userRespId);
-    const res = await axios.get('/api/psc', {
-      params: { userRespId }
-    });
-    // const res = await axios.get('/api/psc');
-    setPscs(res.data || []);
+    setLoading(true);
+    try {
+      const user = (() => {
+        try { return JSON.parse(localStorage.getItem('dcmsUser')); }
+        catch (e) { return null; }
+      })();
+      const userRespId = user?.user_resp_id || user?.userresp || null;
+      console.log("Fetch Pscs userRespId :", userRespId);
+      const res = await axios.get('/api/psc', {
+        params: { userRespId }
+      });
+      // const res = await axios.get('/api/psc');
+      setPscs(res.data || []);
+    } catch (err) {
+      console.error('fetchPscs failed', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const fetchDepartments = async () => {
@@ -60,6 +68,7 @@ export default function CorrectiveAction() {
       console.warn('dept load failed', e);
     }
   };
+  
 
   const handleSelect = useCallback((psc) => {
     setSelected(psc);
@@ -133,6 +142,7 @@ export default function CorrectiveAction() {
     console.log('Sending payload:', payload);
     await axios.put(`/api/psc/${selected.id}/corrective`, payload);
 
+
     setAction({
       initialContainmentAction: '',
       doneBy: '',
@@ -151,19 +161,32 @@ export default function CorrectiveAction() {
 
   }, [action, selected]);
 
-  const filteredPSCs = pscs.filter(p => {
-    const s = searchTerm.toLowerCase();
-    return (
-      (p.problem_number || p.problemNumber || '').toLowerCase().includes(s) ||
-      (p.initiator_name || p.initiatorName || '').toLowerCase().includes(s) ||
-      (p.date || '').toLowerCase().includes(s) ||
-      (p.shift || '').toLowerCase().includes(s) ||
-      (p.value_stream_line || p.valueStreamLine || '').toLowerCase().includes(s) ||
-      (p.ticket_stage || p.ticketStage || '').toLowerCase().includes(s) ||
-      (p.short_description || p.shortDescription || '').toLowerCase().includes(s) ||
-      (p.status || '').toLowerCase().includes(s)
-    );
-  });
+  // const filteredPSCs = pscs.filter(p => {
+  //   const s = searchTerm.toLowerCase();
+  //   return (
+  //     (p.problem_number || p.problemNumber || '').toLowerCase().includes(s) ||
+  //     (p.initiator_name || p.initiatorName || '').toLowerCase().includes(s) ||
+  //     (p.date || '').toLowerCase().includes(s) ||
+  //     (p.shift || '').toLowerCase().includes(s) ||
+  //     (p.value_stream_line || p.valueStreamLine || '').toLowerCase().includes(s) ||
+  //     (p.ticket_stage || p.ticketStage || '').toLowerCase().includes(s) ||
+  //     (p.short_description || p.shortDescription || '').toLowerCase().includes(s) ||
+  //     (p.status || '').toLowerCase().includes(s)
+  //   );
+  // });
+    const filteredPSCs = useMemo(() => pscs.filter((p) => {
+      const s = (searchTerm || '').toLowerCase();
+      const maybe = (v) => (v || '').toString().toLowerCase();
+      return (
+        maybe(p.problem_number || p.problemNumber).includes(s) ||
+        maybe(p.initiator_name || p.initiatorName).includes(s) ||
+        maybe(p.date).includes(s) ||
+        maybe(p.shift).includes(s) ||
+        maybe(p.value_stream_line || p.valueStreamLine || p.valueStream || p.value_stream).includes(s) ||
+        maybe(p.ticket_stage || p.ticketStage).includes(s) ||
+        maybe(p.status).includes(s)
+      );
+    }), [pscs, searchTerm]);
 
   return (
     <div>
@@ -173,6 +196,7 @@ export default function CorrectiveAction() {
           searchTerm={searchTerm}
           setSearchTerm={setSearchTerm}
           openPreview={handleSelect}
+          loading={loading}
         />
       )}
 
@@ -202,68 +226,86 @@ export default function CorrectiveAction() {
 
 // ============= Sub Components =============
 
-const TableView = React.memo(({ filteredPSCs, searchTerm, setSearchTerm, openPreview }) => (
-  <div className="card mt-4 full-height">
-    <div className="card-body">
-      <div className="d-flex justify-content-between align-items-center mb-3">
-        <h4 className="card-title">Containment Action</h4>
-        <div style={{ width: '40%' }} className="d-flex">
-          <input
-            className="form-control"
-            placeholder="Search..."
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-          />
+const TableView = React.memo(({ filteredPSCs, searchTerm, setSearchTerm, openPreview, loading }) => {
+  const sorted = React.useMemo(() => {
+    const arr = (filteredPSCs || []).slice();
+    arr.sort((a, b) => {
+      if (a.status === "Completed" && b.status !== "Completed") return 1;
+      if (a.status !== "Completed" && b.status === "Completed") return -1;
+      const aTime = new Date(a.updated_at || a.created_at || a.date || 0).getTime();
+      const bTime = new Date(b.updated_at || b.created_at || b.date || 0).getTime();
+      return bTime - aTime;
+    });
+    return arr;
+  }, [filteredPSCs]);
+
+  return (
+    <div className="card mt-4 full-height">
+      <div className="card-body">
+        <div className="d-flex justify-content-between align-items-center mb-3">
+          <h4 className="card-title">Containment Action</h4>
+          <div style={{ width: '40%' }} className="d-flex">
+            <input
+              className="form-control"
+              placeholder="Search..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="table-responsive">
+          <table className="table table-bordered table-hover">
+            <thead className="thead-light">
+              <tr>
+                <th>Problem No</th>
+                <th>Initiator</th>
+                <th>Date</th>
+                <th>Shift</th>
+                <th>Value Stream</th>
+                <th>Short Description</th>
+                <th>Stage</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan="8" className="text-center">
+                    <div className="spinner-border text-primary" role="status">
+                      <span className="sr-only">Loading...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : (!sorted || sorted.length === 0) ? (
+                <tr>
+                  <td colSpan="8" className="text-center">No data available</td>
+                </tr>
+              ) : (
+                sorted.map(psc => (
+                  <tr key={psc.id}>
+                    <td>
+                      <button className="btn btn-link p-0" onClick={() => openPreview(psc)}>
+                        {psc.problemNumber || psc.problem_number}
+                      </button>
+                    </td>
+                    <td>{psc.initiatorName || psc.initiator_name}</td>
+                    <td>{psc.date ? new Date(psc.date).toLocaleDateString('en-CA') : ''}</td>
+                     <td>{psc.shift_name}</td>
+                    <td>{psc.vl_name}</td>
+                    <td>{psc.shortDescription || psc.short_description}</td>
+                    <td>{psc.ticketStage || psc.ticket_stage}</td>
+                    <td>{psc.status}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
-
-      <div className="table-responsive">
-        <table className="table table-bordered table-hover">
-          <thead className="thead-light">
-            <tr>
-              <th>Problem No</th>
-              <th>Initiator</th>
-              <th>Date</th>
-              <th>Shift</th>
-              <th>Value Stream</th>
-              <th>Stage</th>
-              <th>Short Description</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredPSCs.length > 0 ? (
-              filteredPSCs.map(psc => (
-                <tr key={psc.id}>
-                  <td>
-                    <button className="btn btn-link p-0" onClick={() => openPreview(psc)}>
-                      {psc.problemNumber || psc.problem_number}
-                    </button>
-                  </td>
-                  <td>{psc.initiatorName || psc.initiator_name}</td>
-                  <td>{psc.date ? new Date(psc.date).toLocaleDateString('en-CA') : ''}</td>
-                  <td>{psc.shift}</td>
-                  <td>{psc.valueStreamLine || psc.value_stream_line}</td>
-                  <td>{psc.ticketStage || psc.ticket_stage}</td>
-                  <td>{psc.shortDescription || psc.short_description}</td>
-                  <td>{psc.status}</td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="8" className="text-center">
-                  <div className="spinner-border text-primary" role="status">
-                    <span className="sr-only">Loading...</span>
-                  </div>
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
     </div>
-  </div>
-));
+  );
+});
 
 const PreviewView = React.memo(({ selected, setShowForm, setShowPreview, setSelected }) => {
   if (!selected) return null;

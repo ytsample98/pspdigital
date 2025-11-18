@@ -264,9 +264,9 @@ const [data, setData] = useState([]);
             */}
             <tr>
               <th rowSpan="2">Months</th>
-              <th colSpan="3">Team Leader</th>
-              <th colSpan="3">Value Stream Leader</th>
-              <th colSpan="3">Plant Level</th>
+              <th colSpan="3">Team Leader(L1)</th>
+              <th colSpan="3">Value Stream Leader(L2)</th>
+              <th colSpan="3">Plant Head(L3)</th>
               <th rowSpan="2">Pending</th>
               <th rowSpan="2">PSP</th>
             </tr>

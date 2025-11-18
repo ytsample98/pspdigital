@@ -3,8 +3,6 @@ import { Link, withRouter } from 'react-router-dom';
 import { Collapse } from 'react-bootstrap';
 import { Dropdown } from 'react-bootstrap';
 import { Trans } from 'react-i18next';
-import { db } from '../../firebase';
-import { collection,getDocs } from 'firebase/firestore';
 
 
 class Sidebar extends Component {
@@ -145,9 +143,9 @@ onRouteChanged() {
   ) : (
     <div style={{ display: 'flex', alignItems: 'center', flexDirection: 'column', gap: 8 }}>
       <img
-        src={require("../../assets/images/workpro.png")}
+        src={require("../../assets/images/Workprologo.png")}
         alt="WorkPro Logo"
-        style={{ height: 27, objectFit: "contain" }}
+        style={{ height: 75, objectFit: "contain" }}
       />
     </div>
   )}
@@ -234,13 +232,7 @@ async componentDidMount() {
   if (storedBG) {
     this.setState({ businessGroup: JSON.parse(storedBG) });
   } else {
-    // Only fetch from Firestore if nothing in localStorage (first ever load)
-    const snap = await getDocs(collection(db, 'businessGroups'));
-    const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    if (data[0]) {
-      localStorage.setItem('businessGroup', JSON.stringify(data[0]));
-      this.setState({ businessGroup: data[0] });
-    }
+    console.log('No business group in localStorage, fetching default...');
   }
 
   // load current user from localStorage for permission checks

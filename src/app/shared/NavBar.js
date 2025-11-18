@@ -107,10 +107,10 @@ addNotification = (cardId, message) => {
             href="!#"
             onClick={(evt) => evt.preventDefault()}
           >
-            <img
+            {/* <img
               src={require("../../assets/images/logo-mini.svg")}
               alt="logo"
-            />
+            /> */}
           </a>
           <button
             className="navbar-toggler navbar-toggler align-self-center"

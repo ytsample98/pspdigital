@@ -5,7 +5,6 @@ import axios from 'axios';
 import ProblemCard from './ProblemCard.js';
 import { loadEscalations, computeEscalationForPsc, isFieldEditable,hoursSince } from './pscPermissions';
 
-
 export default function PSCFullView({ psc = {}, actions = null, onClose = () => {}, onOpenEffectCheck = null, openPrint = () => { window.location.href = '/ProblemCard'; } }) {
   const p = psc || {};
   const [escalations, setEscalations] = useState([]);
@@ -20,12 +19,14 @@ export default function PSCFullView({ psc = {}, actions = null, onClose = () => 
   const [selectedCmIndex, setSelectedCmIndex] = useState(-1);
   const [commentsDialog, setCommentsDialog] = useState({ show: false, cmId: null });
   const [showProblemCard, setShowProblemCard] = useState(false);
+  const [effectHistory, setEffectHistory] = useState([]);
+
 
   useEffect(() => {
     let mounted = true;
     loadEscalations().then(list => { if (mounted) setEscalations(list); });
     const update = () => {
-      setElapsedHours(hoursSince(p.date || p.created_at || p.createdAt || new Date()));
+      setElapsedHours(hoursSince(p.created_at));
     };
     update();
     const t = setInterval(() => {
@@ -35,9 +36,15 @@ export default function PSCFullView({ psc = {}, actions = null, onClose = () => 
   }, [p.date]);
 
   useEffect(() => {
-    const esc = computeEscalationForPsc(p, escalations);
+    const esc = computeEscalationForPsc(p, escalations,user);
     setActiveEsc(esc);
+    console.log('esc used')
   }, [escalations, elapsedHours, p]);
+  useEffect(() => {
+  axios.get(`/api/psc/${p.id}/effectcheck`)
+      .then(res => setEffectHistory(res.data || []))
+}, [p.id])
+
 
   const get = (k) => p[k] ?? p[k.replace(/([A-Z])/g, '_$1').toLowerCase()] ?? '';
 
@@ -133,6 +140,10 @@ setShowProblemCard(true);
   const canSeeCorrective =  stage === 'Plan';
   const hasAcceptedCM = countermeasuresList.some(cm => (cm.status || cm.cm_status || '').toString().toLowerCase() === 'accepted');
   const canSeeEffectCheck = stage === 'Action' && hasAcceptedCM;
+  p.effectcheck_history = effectHistory
+  console.log('corrective done',corrective.username)
+    console.log('corrective done',corrective.done_by)
+
 
   return (
     <div className="psc-fullview container-fluid" style={{ padding: 18 }}>
@@ -202,7 +213,7 @@ setShowProblemCard(true);
                 <div className='form-group col-md-2'><label>Problem No</label><div>{field('problem_number','problemNumber')}</div></div>
                 <div className='form-group col-md-2'><label>Name</label><div>{field('initiator_name','initiatorName')}</div></div>
                 <div className='form-group col-md-2'><label>Date</label><div>{p.date ? new Date(p.date).toLocaleDateString('en-CA') : ''}</div></div>
-                <div className='form-group col-md-2'><label>Shift</label><div>{p.shift}</div></div>
+                <div className='form-group col-md-2'><label>Shift</label><div>{p.shift_name}</div></div>
                 <div className='form-group col-md-2'></div>
                  <div className='col-md-2 d-flex flex-column justify-content-end' style={{ gap: '6px' }}>
             <div style={{ gap: '6px' }}>
@@ -226,7 +237,7 @@ setShowProblemCard(true);
 
                 </div>
                 <div className='form-row'>
-                <div className='form-group col-md-2'><label>Line</label><div>{p.line_code || p.lineCode || p.line}</div></div>
+                <div className='form-group col-md-2'><label>Line</label><div>{p.line_name || ''}</div></div>
                 <div className='form-group col-md-2'><label>Qty Affected:</label><div>{p.qty_affected || p.qtyAffected || ''}</div></div>
                 <div className='form-group col-md-2'><label>Part:</label> <div>{p.part_affected || p.partAffected || ''}</div></div>
                 <div className='form-group col-md-2'><label>Supplier:</label> <div>{p.supplier || ''}</div></div>
@@ -255,8 +266,8 @@ setShowProblemCard(true);
                 <label>Containment Action</label>
                 <div style={{ border: '1px solid #ddd', padding: 8 }}>
                   <div><strong>Containment Action:</strong> {corrective.initialContainmentAction || corrective.action_taken || ''}</div>
-                  <div><strong>Done By:</strong> {corrective.doneBy || corrective.done_by || ''}</div>
-                  <div><strong>Assign To:</strong> {corrective.assignTo || corrective.corrective_assign_to || ''}</div>
+                  <div><strong>Done By:</strong> {corrective.username}</div>
+                  <div><strong>Assign To:</strong> {corrective.dept_name}</div>
                   <div><strong>Remarks:</strong> {corrective.remarks || corrective.corrective_comments || ''}</div>
                 </div>
               </div>
@@ -295,10 +306,10 @@ setShowProblemCard(true);
             <tr key={i}>
               <td>{countermeasuresList.length - i}</td>
               <td>{cm.countermeasure || cm.description}</td>
-              <td>{cm.targetDate|| ''}</td>
-              <td>{cm.type|| ''}</td>
-              <td>{cm.counter_comments || ''}</td>
-              <td>{cm.status || 'Pending'}</td>
+              <td>{cm.target_date ? new Date(cm.target_date).toLocaleDateString('en-CA') : ''}</td>
+              <td>{cm.type}</td>
+              <td>{cm.comments || ''}</td>
+              <td>{cm.cm_status}</td>
              {/* <td> {cm.status === 'Rejected' ? (cm.rejection_reason): ''}</td> */}
             </tr>
           ))
@@ -317,14 +328,52 @@ setShowProblemCard(true);
               </div>
 
               <hr />
-              <div className='form-group'>
-                <label>Effectiveness check / Description</label>
-                <div style={{ border: '1px solid #ddd', padding: 8 }}>
-                    <div style={editableHint('effectiveness_checked')}><strong>Checked:</strong> {p.effectiveness_checked || p.effectivenessCheck || ''}</div>
-                    <div style={editableHint('effectiveness_date')}><strong>Date:</strong> {p.effectiveness_date || p.effectivenessDate || ''}</div>
-                    <div style={editableHint('effectiveness_remarks')}><strong>Remarks:</strong> {p.effectiveness_remarks || p.effectivenessRemarks || ''}</div>
-                </div>
-              </div>
+             <div className='form-group'>
+  <label>Effectiveness check / Description</label>
+  <div style={{ border: '1px solid #ddd', padding: 8 }}>
+
+    {/* <div style={editableHint('effectiveness_checked')}>
+      <strong>Checked:</strong> {p.effectiveness_checked || p.effectivenessCheck || ''}
+    </div>
+
+    <div style={editableHint('effectiveness_date')}>
+      <strong>Date:</strong> {p.effectiveness_date || p.effectivenessDate || ''}
+    </div>
+
+    <div style={editableHint('effectiveness_remarks')}>
+      <strong>Remarks:</strong> {p.effectiveness_remarks || p.effectivenessRemarks || ''}
+    </div> */}
+
+    {/* ---------------------- NEW PLACEHOLDERS ---------------------- */}
+    {p.effectcheck_history && p.effectcheck_history.length > 0 && (
+      <div style={{ marginTop: 10 }}>
+        {/* <strong>Previous Effectiveness Notes:</strong> */}
+
+        <div style={{ whiteSpace: 'pre-wrap', marginTop: 6 }}>
+          {p.effectcheck_history.map((h, idx) => (
+            <div key={idx} style={{ marginBottom: 6 }}>
+              {/* <span style={{ fontWeight: 600 }}>
+                {h.check_status === 'Accepted' ? '✅ Accepted:' : '❌ Rejected:'}
+              </span> */}
+               <div>
+      <strong>Checked:</strong> {h.remarks || '-'}
+    </div>
+{/* 
+              <div>
+      <strong>Date:</strong>                {h.checked_at ? new Date(h.checked_at).toLocaleString() : ''}
+
+    </div> */}
+
+             
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+
+  </div>
+</div>
+
 
             </div>
 

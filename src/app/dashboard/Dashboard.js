@@ -1,17 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import '../../assets/styles/YTDMetricCards.css';
 import PSPCompetencyTable from './PSPCompetencyTable';
-import PSPChart from './PSPChart';
+import PSPProblemTypeChart from './PSPProblemTypeChart';
 
 const YTDMetricCards = () => {
   const [metrics, setMetrics] = useState({
-    cardsOpened: 85,
-    cardsClosed: 195,
+    cardsOpened: '',
+    cardsClosed: '',
     closurePercent: ''
   });
   useEffect(() => {
     // Fetch PSP data from backend API
     const fetchMetrics = async () => {
+      console.log('Fetching YTD metrics');
       try {
         const response = await fetch('/api/psp/ytd-metrics'); // Adjust endpoint
         const data = await response.json();
@@ -56,6 +57,10 @@ const YTDMetricCards = () => {
     <div className="report-section">
       <PSPCompetencyTable />
     </div>
+
+     {/* <div className="report-section">
+      <PSPProblemTypeChart />
+    </div> */}
 
      
 

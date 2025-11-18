@@ -23,12 +23,6 @@ Object.defineProperty(exports, "BoardContainer", {
     return _BoardContainer.default;
   }
 });
-Object.defineProperty(exports, "Board", {
-  enumerable: true,
-  get: function get() {
-    return _Board.default;
-  }
-});
 Object.defineProperty(exports, "Lane", {
   enumerable: true,
   get: function get() {

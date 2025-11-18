@@ -49,16 +49,22 @@ export default function UserResponsibility() {
 
         <table className="table table-sm table-bordered">
           <thead><tr>
+            <th>Edit</th>
             <th>Responsibility</th>
             <th>Pages</th>
-            <th>Actions</th>
+            
             </tr></thead>
           <tbody>
             {items.map(it=> (
               <tr key={it.id}>
+                 <td>
+                  <i className="mdi mdi-pencil" style={{ fontSize: '24px', color: '#2196F3', cursor: 'pointer' }} onClick={()=>edit(it)}></i> 
+                  {/* <button className="btn btn-sm btn-link text-danger" onClick={()=>remove(it.id)}>Delete</button> */}
+                  </td>
                 <td>{it.resp_name}</td>
                 <td style={{maxWidth:300, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>{(() => { try { return JSON.parse(it.pages||'[]').join(', '); } catch(e){ return it.pages; } })()}</td>
-                <td><button className="btn btn-sm btn-link" onClick={()=>edit(it)}>Edit</button> <button className="btn btn-sm btn-link text-danger" onClick={()=>remove(it.id)}>Delete</button></td></tr>
+               
+                  </tr>
             ))}
             {items.length===0 && <tr><td colSpan="3">No responsibilities</td></tr>}
           </tbody>

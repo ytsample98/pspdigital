@@ -7,6 +7,7 @@ import OrganizationPage from './administrator/OrganizationPage';
 const Dashboard = lazy(() => import('./dashboard/Dashboard'));
 const Register= lazy(() => import('./user-pages/Register'));
 const Login = lazy(() => import('./user-pages/Login'));
+const footer = lazy(() => import('./shared/Footer'));
 
 const pspform=lazy(()=> import('./psp/pspform'));
 const OrgPage=lazy(()=> import('./administrator/OrganizationPage'));

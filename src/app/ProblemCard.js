@@ -1,6 +1,8 @@
 import React from "react";
 import "../assets/styles/ProblemCard.css";
 import {activeEsc} from  './PSCFullView.js';
+import { useEffect, useState } from 'react';
+import axios from 'axios';
 
 function field(p, snake, camel) {
   return p[snake] ?? p[camel] ?? '';
@@ -24,6 +26,7 @@ function getWhyList(rootCauseObj, p) {
     rootCauseObj.why5 || rootCauseObj.why_5 || p.why5 || p.why_5 || ''
   ].filter(w => w && w.toString().trim() !== '');
 }
+
 
 function getCountermeasuresList(rootCauseObj) {
   let countermeasuresList = [];
@@ -53,6 +56,14 @@ const ProblemCard = ({ psc = {},activeEsc=null }) => {
   const date = p.date ? new Date(p.date) : null;
   const year = date ? date.getFullYear() : '';
   const problemNo = field(p, 'problem_number', 'problemNumber');
+  const [effectHistory, setEffectHistory] = useState([]);
+  
+  useEffect(() => {
+  axios.get(`/api/psc/${p.id}/effectcheck`)
+      .then(res => setEffectHistory(res.data || []))
+}, [p.id])
+
+ p.effectcheck_history = effectHistory
 
   // Start rendering, but only substitute values where you described:
   return (
@@ -75,23 +86,24 @@ const ProblemCard = ({ psc = {},activeEsc=null }) => {
               Date:<span className="readonly">{date ? date.toLocaleDateString('en-CA') : "05/11/2025"}</span>
             </label>
             <label>
-              Shift: <span className="readonly">{p.shift || "A"}</span>
+              Shift: <span className="readonly">{p.shift_name || "A"}</span>
             </label>
           </div>
 
           <div className="row">
             <label>
-              Time: from <span className="readonly">08:00</span> to <span className="readonly">17:00</span>
+              Time:<span className="readonly">{p.start_time?.slice(0, 5)}</span> to <span className="readonly">{p.end_time?.slice(0, 5)}</span>
             </label>
+            
            <label>
   KPI:{' '}
   <span className="readonly">
     {{
-      s: 'Safety',
-      q: 'Quality',
-      d: 'Delivery',
-      c: 'Cost',
-      e: 'Environment',
+      S: 'Safety',
+      Q: 'Quality',
+      D: 'Delivery',
+      C: 'Cost',
+      E: 'Environment',
     }[p.problem_type] || '-'}
   </span>
 </label>
@@ -107,7 +119,7 @@ const ProblemCard = ({ psc = {},activeEsc=null }) => {
           <div className="description-box">
             <div className="description-header">
               <label className="line-label">
-                Line: <span className="readonly">{p.line_code || p.lineCode || p.line || "Line-1"}</span>
+                Line: <span className="readonly">{p.line_name || ''}</span>
               </label>
             </div>
             <label className="textarea-label">
@@ -153,7 +165,7 @@ const ProblemCard = ({ psc = {},activeEsc=null }) => {
               readOnly
               className="no-border-textarea"
               rows="3"
-              value={firstCm.countermeasure || firstCm.description || "Enter countermeasure here..."}
+              value={firstCm.countermeasure || firstCm.description || " "}
             />
           </label>
         </div>
@@ -162,13 +174,13 @@ const ProblemCard = ({ psc = {},activeEsc=null }) => {
         <div className="section">
           <div className="row">
             <label>
-              Responsible: <span className="readonly">{firstCm.doneBy || firstCm.responsible || "Arunkumar"}</span>
+              Responsible: <span className="readonly">{firstCm.created_by}</span>
             </label>
             <label>
-              Date: <span className="readonly">{firstCm.targetDate || "05/11/2025"}</span>
+              Target Date: <span className="readonly">{firstCm.target_date ? new Date(firstCm.target_date).toLocaleDateString('en-CA') : ''}</span>
             </label>
             <label>
-              Shift: <span className="readonly">{firstCm.shift || "A"}</span>
+              Shift: <span className="readonly">{p.shift_name}</span>
             </label>
           </div>
         </div>
@@ -178,13 +190,38 @@ const ProblemCard = ({ psc = {},activeEsc=null }) => {
           <div className="row">
             <label className="textarea-label">
               Effectiveness check / Description:
-              <textarea
+                  {p.effectcheck_history && p.effectcheck_history.length > 0 && (
+      <div style={{ marginTop: 10 }}>
+        {/* <strong>Previous Effectiveness Notes:</strong> */}
+
+        <div style={{ whiteSpace: 'pre-wrap', marginTop: 6 }}>
+          {p.effectcheck_history.map((h, idx) => (
+            <div key={idx} style={{ marginBottom: 6 }}>
+              {/* <span style={{ fontWeight: 600 }}>
+                {h.check_status === 'Accepted' ? '✅ Accepted:' : '❌ Rejected:'}
+              </span> */}
+               <div>
+       {h.remarks || '-'}
+    </div>
+{/* 
+              <div>
+      <strong>Date:</strong>                {h.checked_at ? new Date(h.checked_at).toLocaleString() : ''}
+
+    </div> */}
+
+             
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+              {/* <textarea
                 readOnly
                 className="no-border-textarea"
                 rows="3"
                 value={p.effectiveness_remarks || p.effectivenessRemarks || "Effectiveness verified successfully."}
                 style={editableHint("effectiveness_remarks")}
-              />
+              /> */}
             </label>
           </div>
           <div className="row">

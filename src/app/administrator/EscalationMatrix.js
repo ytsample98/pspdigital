@@ -86,26 +86,30 @@ export default function EscalationMatrix() {
         <table className='table table-sm table-bordered'>
           <thead>
             <tr>
+              <th>Edit</th>
               <th>Escalation ID</th>
               <th>Name</th>
               <th>Time Duration</th>
               <th>Authority</th>
-              <th></th>
+              
             </tr>
           </thead>
           <tbody>
             {rows.map(r => (
               <tr key={r.id}>
+                 <td>
+                  <i className="mdi mdi-pencil"  onClick={() => handleEdit(r)}
+   style={{ fontSize: '24px', color: '#2196F3', cursor: 'pointer' }}> 
+</i>
+                  {/* <button className='btn btn-sm btn-link text-danger' onClick={() => handleDelete(r.id)}>Delete</button> */}
+                </td>
                 <td>{r.escalation_id || r.escalationId}</td>
                 <td>{r.escalation_name || r.escalationName}</td>
                 <td>{r.time_duration || r.timeDuration}</td>
                 <td>
                   {(authorityOptions.find(a => String(a.id) === String(r.authority_id)) || {}).resp_name || ''}</td>
                   
-                <td>
-                  <button className='btn btn-sm btn-link' onClick={() => handleEdit(r)}>Edit</button>
-                  <button className='btn btn-sm btn-link text-danger' onClick={() => handleDelete(r.id)}>Delete</button>
-                </td>
+               
               </tr>
             ))}
           </tbody>

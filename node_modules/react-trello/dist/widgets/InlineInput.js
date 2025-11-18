@@ -67,7 +67,7 @@ class InlineInputController extends _react.default.Component {
     });
   }
 
-  componentWillReceiveProps(nextProps) {
+  UNSAFE_componentWillReceiveProps(nextProps) {
     this.setValue(nextProps.value);
   }
 

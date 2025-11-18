@@ -1,18 +1,61 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import axios from 'axios';
 import CountermeasureComments from './CountermeasureComments';
 import { loadEscalations, computeEscalationForPsc } from './pscPermissions';
 import { useCanEdit } from './canEdit';
 import PSCFullView from './PSCFullView';
-/*
-  EffectCheck - approval form version
 
-  Usage:
-    - When opened in "transaction" mode it receives a `psc` prop (single PSC object) OR
-      it can list PSCs (legacy list view). Here we support both:
-      - If prop `pscContext` is provided -> operate on that PSC only (launched from PSCFullView)
-      - Otherwise show the list/table of PSCs (full list)
-*/
+// Confirm modal component defined at module scope to remain stable across renders
+const ConfirmModal = React.memo(function ConfirmModal({ show, confirmMode, initialRemark, onClose, onSave }) {
+  const [localRemark, setLocalRemark] = useState(initialRemark || '');
+  useEffect(() => { setLocalRemark(initialRemark || ''); }, [initialRemark]);
+  if (!show) return null;
+  return (
+    <div
+      className="modal show"
+      style={{
+        display: 'block',
+        backgroundColor: 'rgba(0,0,0,0.4)',
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
+        zIndex: 1050
+      }}
+    >
+      <div className="modal-dialog" style={{ marginTop: '10%' }}>
+        <div className="modal-content">
+          <div className="modal-header">
+            <b>{confirmMode === "accept" ? "Accept" : "Reject"} Selected Countermeasures</b>
+            <button type='button' className="close" onClick={() => { onClose(); }}>
+              &times;
+            </button>
+          </div>
+          <div className="modal-body">
+            <textarea
+              rows={4}
+              className="form-control"
+              placeholder="Remark..."
+              value={localRemark}
+              onChange={e => setLocalRemark(e.target.value)}
+            />
+          </div>
+          <div className="modal-footer">
+            <button
+              type='button'
+              className="btn btn-primary"
+              onClick={async () => { await onSave(localRemark); }}
+            >
+              Save
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+});
+
 
 export default function EffectCheck({ pscContext = null, onClose = () => {}, mode = '', targetCmId = null }) {
   const [pscs, setPscs] = useState([]);
@@ -22,14 +65,17 @@ export default function EffectCheck({ pscContext = null, onClose = () => {}, mod
   const [activeEsc, setActiveEsc] = useState(null);
   const [selectedActions, setSelectedActions] = useState({}); // { cmId: 'accept' | 'reject' | undefined }
 const [reasonByCm, setReasonByCm] = useState({});  
-const [selectedCmid, setSelectedCmid] = useState([]);    // array of selected CM ids
-const [confirmMode, setConfirmMode] = useState('');      // "accept" | "reject" | ''
-const [batchRemark, setBatchRemark] = useState('');
+  const [selectedCmid, setSelectedCmid] = useState([]);    // array of selected CM ids
+  const [confirmMode, setConfirmMode] = useState('');      // "accept" | "reject" | ''
+  const [batchRemark, setBatchRemark] = useState('');
 const [effectData, setEffectData] = useState(null);
   const [remarks, setRemarks] = useState('');
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
   const [effectHistory, setEffectHistory] = useState([]);
+  // local copy of previous remarks to avoid recalculation every render
+  const [previousRemarksLocal, setPreviousRemarksLocal] = useState('');
+  
 
   
   // View states for form/preview pattern
@@ -90,12 +136,17 @@ const [effectData, setEffectData] = useState(null);
     else setActiveEsc(null);
   }, [selected, escalations]);
 
-  const loadEffectHistory = async () => {
-  const res = await axios.get(`/api/psc/${selected.id}/effectcheck`);
-  setEffectHistory(res.data || []);
-};
+  const loadEffectHistory = useCallback(async () => {
+    if (!selected || !selected.id) return;
+    try {
+      const res = await axios.get(`/api/psc/${selected.id}/effectcheck`);
+      setEffectHistory(res.data || []);
+    } catch (err) {
+      console.error('loadEffectHistory failed', err);
+    }
+  }, [selected]);
 
-  const fetchPscs = async () => {
+  const fetchPscs = useCallback(async () => {
     try {
       // const res = await axios.get('/api/psc');
        const user = (() => {
@@ -111,9 +162,9 @@ const [effectData, setEffectData] = useState(null);
     } catch (err) {
       console.error('fetchPscs failed', err);
     }
-  };
+  }, []);
 
-  const openPsc = async (psc) => {
+  const openPsc = useCallback(async (psc) => {
     try {
       const res = await axios.get(`/api/psc/${psc.id}`);
       setSelected(res.data);
@@ -122,9 +173,9 @@ const [effectData, setEffectData] = useState(null);
     } catch (err) {
       console.error('Failed to load PSC details:', err);
     }
-  };
+  }, []);
 
-  const getCountermeasures = (pscObj) => {
+  const getCountermeasures = useCallback((pscObj) => {
     const rc = pscObj?.root_cause ?? pscObj?.rootCause ?? {};
     if (!rc) return [];
     if (Array.isArray(rc.countermeasures)) return rc.countermeasures;
@@ -132,35 +183,37 @@ const [effectData, setEffectData] = useState(null);
       try { return JSON.parse(rc.countermeasures || '[]'); } catch { return []; }
     }
     return [];
-  };
+  }, []);
 
-   useEffect(() => {
-    if (!pscContext) fetchAllPsc();
-    else fetchEffectiveness(pscContext.id);
-  }, [pscContext]);
+  
 
-  const fetchAllPsc = async () => {
-    try {
-      const res = await axios.get('/api/psc');
-      setPscs(res.data || []);
-    } catch (err) {
-      console.error('Failed to fetch PSC list', err);
-    }
-  };
+  // const fetchAllPsc = useCallback(async () => {
+  //   try {
+  //     const res = await axios.get('/api/psc');
+  //     setPscs(res.data || []);
+  //   } catch (err) {
+  //     console.error('Failed to fetch PSC list', err);
+  //   }
+  // }, []);
 
-  const fetchEffectiveness = async (pscId) => {
+  const fetchEffectiveness = useCallback(async (pscId) => {
     try {
       const res = await axios.get(`/api/psc/${pscId}/effectcheck`);
       setEffectData(res.data || []);
     } catch (err) {
       console.error('Failed to fetch effectiveness data', err);
     }
-  };
+  }, []);
 
-  const handleSelectPsc = async (psc) => {
+  // useEffect(() => {
+  //   if (!pscContext) fetchAllPsc();
+  //   else fetchEffectiveness(pscContext.id);
+  // }, [pscContext, fetchAllPsc, fetchEffectiveness]);
+
+  const handleSelectPsc = useCallback(async (psc) => {
     setSelected(psc);
     await fetchEffectiveness(psc.id);
-  };
+  }, [fetchEffectiveness]);
 
   const submitDecision = async (decision) => {
     if (!selected) return alert('No PSC selected');
@@ -188,97 +241,245 @@ const [effectData, setEffectData] = useState(null);
   };
 
 
-  // Table view for PSC list (when not in single-psc transaction mode)
-  const TableView = () => (
-    <div className="card mt-4 full-height">
-      <div className="card-body">
-        <div className="d-flex justify-content-between align-items-center mb-3">
-          <h4 className="card-title">Effectiveness Check</h4>
-          <div style={{ width: '40%' }} className="d-flex">
-            <input className="form-control" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+  // // Table view for PSC list (when not in single-psc transaction mode)
+  // const TableView = () => (
+  //   <div className="card mt-4 full-height">
+  //     <div className="card-body">
+  //       <div className="d-flex justify-content-between align-items-center mb-3">
+  //         <h4 className="card-title">Effectiveness Check</h4>
+  //         <div className="d-flex" style={{ width: '40%' }} >
+  //           <input className="form-control" placeholder="Search..." value={searchTerm} 
+  //           onChange={(e) => setSearchTerm(e.target.value)} />
+  //         </div>
+  //       </div>
+  //       <div className="table-responsive">
+  //         <table className="table table-bordered table-hover">
+  //           <thead className="thead-light">
+  //             <tr>
+  //               <th>Problem No</th><th>Initiator</th><th>Date</th><th>Shift</th><th>Value Stream</th><th>Stage</th><th>Status</th>
+  //             </tr>
+  //           </thead>
+  //           <tbody>
+  //             {(pscs || []).length > 0 ? (
+  //             pscs.filter(p => {
+  //               const s = (searchTerm || '').toLowerCase();
+  //               const matchesSearch = (
+  //                 (p.problem_number || p.problemNumber || '').toString().toLowerCase().includes(s) ||
+  //                 (p.initiator_name || p.initiatorName || '').toString().toLowerCase().includes(s) ||
+  //                 (p.vl_name || '').toString().toLowerCase().includes(s) ||
+  //                 (p.ticket_stage || p.ticketStage || '').toString().toLowerCase().includes(s) ||
+  //                 (p.status || '').toString().toLowerCase().includes(s)
+  //               );
+  //               return matchesSearch;
+  //             }).map(psc => (
+  //               <tr key={psc.id}>
+  //                 <td><button className="btn btn-link p-0" onClick={() => openPsc(psc)}>{psc.problem_number || psc.problemNumber}</button></td>
+  //                 <td>{psc.initiator_name || psc.initiatorName}</td>
+  //                 <td>{psc.date ? new Date(psc.date).toLocaleDateString('en-CA') : ''}</td>
+  //                  <td>{psc.shift_name}</td>
+  //                 <td>{psc.vl_name}</td>
+  //                 <td>{psc.ticket_stage || psc.ticketStage}</td>
+  //                 <td>{psc.status}</td>
+  //               </tr>
+  //             ))
+  //           ) : (
+  //             <tr>
+  //                 <td colSpan="8" className="text-center">
+  //     <div className="spinner-border text-primary" role="status">
+  //       <span className="sr-only">Loading...</span>
+  //     </div>
+  //     </td>
+  //             </tr>
+  //           )}
+  //           </tbody>
+  //         </table>
+  //       </div>
+  //     </div>
+  //   </div>
+  // );
+  const filteredPSCs = useMemo(() => pscs.filter((psc) => {
+    const search = searchTerm.toLowerCase();
+    const maybe = (v) => (v || '').toString().toLowerCase();
+    return (
+      maybe(psc.problem_number || psc.problemNumber || '').toLowerCase().includes(search) ||
+      maybe(psc.initiator_name || psc.initiatorName || '').toLowerCase().includes(search) ||
+      maybe(psc.date || '').toLowerCase().includes(search) ||
+      maybe(psc.shift_name || '').toLowerCase().includes(search) ||
+      maybe(psc.value_stream_line || psc.valueStreamLine || '').toLowerCase().includes(search) ||
+      maybe(psc.ticket_stage || psc.ticketStage || '').toLowerCase().includes(search) ||
+      maybe(psc.short_description || psc.shortDescription || '').toLowerCase().includes(search) ||
+      maybe(psc.status || '').toLowerCase().includes(search)
+    );
+  }),[pscs,searchTerm]);
+  const renderpsctable = () => {
+  const sorted = [...filteredPSCs].sort((a, b) => {
+    if (a.status === "Completed" && b.status !== "Completed") return 1;
+    if (a.status !== "Completed" && b.status === "Completed") return -1;
+    const aTime = new Date(a.updated_at || a.created_at || a.date || 0).getTime();
+    const bTime = new Date(b.updated_at || b.created_at || b.date || 0).getTime();
+    return bTime - aTime;
+  });
+
+  // 2️⃣ Handle conditions BEFORE returning JSX
+  if (loading) {
+    return (
+      <tr>
+        <td colSpan="8" className="text-center">
+          <div className="spinner-border text-primary" role="status">
+            <span className="sr-only">Loading...</span>
           </div>
-        </div>
-        <div className="table-responsive">
-          <table className="table table-bordered table-hover">
-            <thead className="thead-light">
-              <tr>
-                <th>Problem No</th><th>Initiator</th><th>Date</th><th>Shift</th><th>Value Stream</th><th>Stage</th><th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(pscs || []).length > 0 ? (
-              pscs.filter(p => {
-                const s = (searchTerm || '').toLowerCase();
-                const matchesSearch = (
-                  (p.problem_number || p.problemNumber || '').toString().toLowerCase().includes(s) ||
-                  (p.initiator_name || p.initiatorName || '').toString().toLowerCase().includes(s)
-                );
-                return matchesSearch;
-              }).map(psc => (
-                <tr key={psc.id}>
-                  <td><button className="btn btn-link p-0" onClick={() => openPsc(psc)}>{psc.problem_number || psc.problemNumber}</button></td>
-                  <td>{psc.initiator_name || psc.initiatorName}</td>
-                  <td>{psc.date ? new Date(psc.date).toLocaleDateString('en-CA') : ''}</td>
-                  <td>{psc.shift}</td>
-                  <td>{psc.value_stream_line || psc.valueStreamLine || psc.vl_name}</td>
-                  <td>{psc.ticket_stage || psc.ticketStage}</td>
-                  <td>{psc.status}</td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                  <td colSpan="8" className="text-center">
-      <div className="spinner-border text-primary" role="status">
-        <span className="sr-only">Loading...</span>
-      </div>
+        </td>
+      </tr>
+    );
+  }
+
+  if (!sorted || sorted.length === 0) {
+    return (
+      <tr>
+        <td colSpan="8" className="text-center">No data available</td>
+      </tr>
+    );
+  }
+
+  // 3️⃣ Return mapping
+  return sorted.map(psc => (
+    <tr key={psc.id}>
+      <td>
+        <button
+          className="btn btn-link p-0"
+          onClick={() => openPsc(psc)}
+        >
+          {psc.problem_number || psc.problemNumber}
+        </button>
       </td>
-              </tr>
-            )}
-            </tbody>
-          </table>
+      <td>{psc.initiator_name || psc.initiatorName}</td>
+      <td>{psc.date ? new Date(psc.date).toLocaleDateString('en-CA') : ''}</td>
+      <td>{psc.shift_name}</td>
+      <td>{psc.value_stream_line}</td>
+      <td>{psc.short_description || psc.shortDescription}</td>
+      <td>{psc.ticket_stage || psc.ticketStage}</td>
+      <td>{psc.status}</td>
+    </tr>
+  ));
+};
+
+
+
+  const TableView = () => (
+  <div className="card mt-4 full-height">
+    <div className="card-body">
+
+      {/* Header */}
+      <div className="d-flex justify-content-between align-items-center mb-3">
+        <h4 className="card-title">Effectiveness Check</h4>
+
+        <div className="d-flex" style={{ width: "40%" }}>
+          <input
+            className="form-control"
+            placeholder="Search..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
         </div>
+      </div>
+
+      {/* Table */}
+      <div className="table-responsive">
+        <table className="table table-bordered table-hover">
+          <thead className="thead-light">
+            <tr>
+              <th>Problem No</th>
+              <th>Initiator</th>
+              <th>Date</th>
+              <th>Shift</th>
+              <th>Value Stream</th>
+              <th>Short Description</th>
+              <th>Stage</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+
+          <tbody>
+           {renderpsctable()}
+          </tbody>
+        </table>
       </div>
     </div>
-  );
-   const cms = getCountermeasures(selected) || [];
+  </div>
+);
+
+  // Memoize countermeasures derived from selected to avoid recalculation on every render
+  const cms = useMemo(() => getCountermeasures(selected) || [], [selected, getCountermeasures]);
+
   useEffect(() => {
-  if (cms.length > 0) {
-    const allIds = cms.map(cm => cm.id);
-    setSelectedCmid(allIds);
-  }
-}, [cms]);
+    if (cms.length > 0) {
+      const allIds = cms.map(cm => cm.id);
+      setSelectedCmid(allIds);
+    } else {
+      setSelectedCmid([]);
+    }
+  }, [cms]);
+useEffect(() => {
+    try {
+      const text = (effectHistory || []).map(r => r.remarks).filter(Boolean).join("\n");
+      setPreviousRemarksLocal(text);
+    } catch (err) {
+      setPreviousRemarksLocal('');
+    }
+  }, [effectHistory]);
+  
 // Table view:
 const PscTransactionView = () => {
-  
-  if (!selected) return null;
-  
+  // Handlers for confirm modal save — memoized
+  const handleConfirmSave = useCallback (async (remark) => {
+    if (!selected) return;
+    try {
+      const user = JSON.parse(localStorage.getItem('dcmsUser') || '{}');
+      const userRespId = user?.user_resp_id || user?.userresp || null;
+          for (const cmId of selectedCmid) {
+            await axios.put(`/api/psc/${selected.id}/effectcheck`, {
+              countermeasure_id: cmId,
+              check_status: confirmMode === "accept" ? "Accepted" : "Rejected",
+              checked_by: user.id || null,
+              remarks: remark,
+              userRespId: userRespId
+            });
+          }
+          setConfirmMode("");
+          setSelectedCmid([]);
+          await openPsc(selected);
+    } catch (err) {
+      console.error('Confirm save failed', err);
+    }
+    }, [selected, selectedCmid, confirmMode, openPsc]);
 
-  const cms = getCountermeasures(selected) || [];
+  if (!selected) return null;
+
+  // reuse memoized cms
   // Helper: get log for remarks
   const getRemarks = (cm) => {
     // Assuming you have log info available for each cm, else fetch when row expands.
     const logs = (cm.logs || []).filter(l => l.type === "Acceptance Remark" || l.type === "Rejection Remark");
     return logs.map(log => log.text).filter(Boolean).join(', ');
   };
-  const previousRemarks = effectHistory
-  .map(r => r.remarks)
-  .filter(Boolean)
-  .join("\n");
-console.log(previousRemarks)
+  // Keep previous remarks in local state to avoid recomputing and to stabilize textarea value
+  
+  // Actions/Acceptance/Reject with one click for all
   // Actions/Acceptance/Reject with one click for all
   return (
     
     <div>
       <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div className="d-flex gap-2 mb-2">
-  <button className="btn btn-success"
+        <h4>Effectiveness Check — {selected.problem_number || selected.problemNumber}</h4>
+        <div className="d-flex mb-2">
+  <button className="btn btn-success mr-2" type='button'
     // disabled={selectedCmid.length==0}
     onClick={()=>{setConfirmMode('accept');}}>Accept</button>
-  <button className="btn btn-danger"
+  <button className="btn btn-danger" type='button'
     // disabled={selectedCmid.length==0}
     onClick={()=>{setConfirmMode('reject');}}>Reject</button>
 </div>
-        <h4>Effectiveness Check — {selected.problem_number || selected.problemNumber}</h4>
+        
       </div>
       <div className="card">
         <div className="card-body">
@@ -297,7 +498,7 @@ console.log(previousRemarks)
   {cms.map((cm, idx) => (
     <tr key={cm.id}>
       <td>{cm.description}</td>
-      <td>{cm.targetDate}</td>
+      <td>{cm.target_date}</td>
       <td>{cm.type}</td>
       <td>
         {cm.comments}
@@ -311,91 +512,24 @@ console.log(previousRemarks)
           
           <div className="modal-body">
           <textarea
-          
             className="form-control"
             placeholder="Remark..."
-            value={previousRemarks}
-           rows={3} readOnly style={{ minHeight: '100px', maxHeight: '300px' }}
+            value={previousRemarksLocal}
+            rows={3} readOnly style={{ minHeight: '100px', maxHeight: '300px' }}
           />
         </div>
           
           
         </div>
       </div>
-     {!!confirmMode && (
-  <div
-    className="modal show"
-    style={{
-      display: 'block',
-      backgroundColor: 'rgba(0,0,0,0.4)',
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      width: '100vw',
-      height: '100vh',
-      zIndex: 1050
-    }}
-  >
-    <div className="modal-dialog" style={{ marginTop: '10%' }}>
-      <div className="modal-content">
-        <div className="modal-header">
-          <b>{confirmMode === "accept" ? "Accept" : "Reject"} Selected Countermeasures</b>
-          <button className="close" onClick={() => { setConfirmMode(""); setBatchRemark(""); }}>
-            &times;
-          </button>
-        </div>
-        <div className="modal-body">
-          <textarea
-            rows={4}
-            className="form-control"
-            placeholder="Remark..."
-            value={batchRemark}
-            onChange={e => setBatchRemark(e.target.value)}
-          />
-        </div>
-        <div className="modal-footer">
-          <button className="btn btn-secondary" onClick={() => { setConfirmMode(""); setBatchRemark(""); }}>
-            Cancel
-          </button>
-          <button
-            className="btn btn-primary"
-            onClick={async () => {
-              const user = JSON.parse(localStorage.getItem('dcmsUser') || '{}');
-              const userRespId = user?.user_resp_id || user?.userresp || null;
-              console.log('here',selectedCmid,selected.id,selectedCmid.id)
-              //  setSelectedCmid([...selectedCmid,cms.id]);
-              for (const cmId of selectedCmid) {
-                await axios.put(`/api/psc/${selected.id}/effectcheck`, {
-
-                  countermeasure_id: cmId,
-                  check_status: confirmMode === "accept" ? "Accepted" : "Rejected",
-                  checked_by: user.id || null,
-                  remarks: batchRemark,
-                  userRespId:userRespId
-                });
-                // console.log("selected.id=", selected?.id, "cmId=", cmId);
-                // await axios.post(`/api/countermeasure/${cmId}/logs`, {
-                //   log_type: confirmMode === "accept" ? "Accepted" : "Rejection Remark",
-                //   text: batchRemark,
-                //   logged_by: user.id || null
-                // });
-              }
-              setConfirmMode("");
-              setBatchRemark("");
-              setSelectedCmid([]);
-              await openPsc(selected);
-              
-
-
-            }}
-          >
-            Save
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-)}
+    <ConfirmModal
+      show={!!confirmMode}
+      confirmMode={confirmMode}
+      initialRemark={batchRemark}
+      onClose={() => { setConfirmMode(''); setBatchRemark(''); }}
+      onSave={handleConfirmSave}
+    />
+    
 
     </div>
     
@@ -409,8 +543,8 @@ console.log(previousRemarks)
         <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between' }}>
           <h4>Effect Check Preview — {selected.problem_number || selected.problemNumber}</h4>
           <div>
-            <button className="btn btn-secondary mr-2" onClick={() => { setShowPreview(false); setSelected(null); }}>Back to List</button>
-            <button className="btn btn-primary" onClick={() => { setShowForm(true); setShowPreview(false);  loadEffectHistory(); }}>
+            {/* <button className="btn btn-secondary mr-2" type='button'  onClick={() => { setShowPreview(false); setSelected(null); }}>Back to List</button> */}
+            <button className="btn btn-primary"  type='button' onClick={() => { setShowForm(true); setShowPreview(false);  loadEffectHistory(); }}>
               Review Countermeasures
             </button>
           </div>

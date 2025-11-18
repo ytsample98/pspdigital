@@ -73,7 +73,7 @@ class UserCreation extends Component {
       showForm: true,
       editingId: null,
       formData: {
-        empcode: this.makeNewempcode(),
+        empcode: '',
         username: '',
         usermail: '',
         userresp: '',
@@ -93,7 +93,7 @@ class UserCreation extends Component {
       showForm: true,
       editingId: user.id,
       formData: {
-        empcode: user.emp_code || this.makeNewempcode(),
+        empcode: user.empcode,
         username: user.username || '',
         usermail: user.email || '',
         userresp: user.user_resp_id || '',
@@ -180,21 +180,21 @@ class UserCreation extends Component {
         <div style={{ padding: 20 }}>
           <div className="d-flex justify-content-between align-items-center mb-3">
             <h4>User Creation</h4>
-            <div>
+            {/* <div>
               <button className="btn btn-secondary btn-sm mr-2" onClick={this.cancelForm}>
                 Cancel
               </button>
               <button className="btn btn-primary btn-sm" onClick={this.handleSubmit}>
                 {this.state.editingId ? 'Update' : 'Create'}
               </button>
-            </div>
+            </div> */}
           </div>
 
           <form onSubmit={this.handleSubmit} autoComplete="off">
             <div className="form-row">
               <div className="form-group col-md-2">
                 <label>User Code</label>
-                <input className="form-control form-control-sm" value={formData.empcode} readOnly />
+                <input className="form-control form-control-sm" value={formData.empcode} onChange={(e) => this.handleChange('empcode', e.target.value)} />
               </div>
 
               <div className="form-group col-md-4">
@@ -286,14 +286,28 @@ class UserCreation extends Component {
             </div>
 
             {/* fixed footer like in your screenshot */}
-            <div style={{ marginTop: 18, borderTop: '1px solid #e9ecef', paddingTop: 12 }}>
-              <button type="button" className="btn btn-secondary btn-sm mr-2" onClick={this.cancelForm}>
-                Cancel
-              </button>
-              <button type="submit" className="btn btn-success btn-sm">
-                {this.state.editingId ? 'Update' : 'Create'}
-              </button>
-            </div>
+           <div style={{ 
+    marginTop: 18, 
+    borderTop: '1px solid #e9ecef', 
+    paddingTop: 12, 
+    display: 'flex', 
+    justifyContent: 'space-between' 
+}}>
+  <button 
+    type="button" 
+    className="btn btn-secondary btn-sm" 
+    onClick={this.cancelForm}
+  >
+    Cancel
+  </button>
+  <button 
+    type="submit" 
+    className="btn btn-success btn-sm"
+  >
+    {this.state.editingId ? 'Update' : 'Create'}
+  </button>
+</div>
+
           </form>
         </div>
       </div>
@@ -318,13 +332,14 @@ class UserCreation extends Component {
             <table className="table table-bordered table-sm">
               <thead className="thead-light">
                 <tr>
+                  <th>Edit</th>
                   <th>User Code</th>
                   <th>User Name</th>
                   <th>E-Mail</th>
                   <th>Responsibility</th>
                   <th>User Type</th>
                   <th>Lock</th>
-                  <th>Actions</th>
+                  {/* <th>Actions</th> */}
                 </tr>
               </thead>
               <tbody>
@@ -338,6 +353,8 @@ class UserCreation extends Component {
                 {!loading &&
                   users.map((u) => (
                     <tr key={u.id}>
+                      <td><i className="mdi mdi-pencil" onClick={() => this.openEditForm(u)}                   
+                            style={{ fontSize: '24px', color: '#2196F3', cursor: 'pointer' }}> </i></td>
                       <td>{u.empcode || u.emp_code}</td>
                       <td>{u.username}</td>
                       <td>{u.usermail || u.email}</td>
@@ -348,14 +365,14 @@ class UserCreation extends Component {
                         {u.user_type || u.type_name}
                       </td>
                       <td>{u.lock_user ? 'Inactive' : 'Active'}</td>
-                      <td>
+                      {/* <td>
                         <button className="btn btn-sm btn-link p-0 mr-2" onClick={() => this.openEditForm(u)}>
                           Edit
                         </button>
                         <button className="btn btn-sm btn-link text-danger p-0" onClick={() => this.handleDelete(u)}>
                           Delete
                         </button>
-                      </td>
+                      </td> */}
                     </tr>
                   ))}
                 {!loading && users.length === 0 && (

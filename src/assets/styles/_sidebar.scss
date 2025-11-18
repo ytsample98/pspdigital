@@ -194,15 +194,23 @@
       }
 
       &.active {
+        background: $sidebar-light-menu-hover-bg;
+
         >.nav-link {
           color: $sidebar-light-menu-active-color;
 
           .menu-title,
           i {
             color: inherit;
+            font-weight: bold;
+          }
+          .menu-icon{
+            color: #fff;
           }
         }
       }
+
+      
 
       &.nav-profile {
         max-width: 270px;

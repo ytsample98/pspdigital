@@ -28,6 +28,9 @@ export default function PSCList() {
   //   );
   // };
   const [form, setForm] = useState(emptyForm());
+  const [loading, setLoading] = useState(true);
+  const [problemNumber, setProblemNumber] = useState('');
+
 
   const user = (() => {
     try { return JSON.parse(localStorage.getItem('dcmsUser')); }
@@ -36,6 +39,14 @@ export default function PSCList() {
   const userRespId = user?.user_resp_id || user?.userresp || null;
 
   useEffect(() => { fetchPscs(); fetchMasters(); }, []);
+  useEffect(() => {
+  const fetchNextNumber = async () => {
+    const res = await fetch('/psccard/next-number');
+    const data = await res.json();
+    setProblemNumber(data.problem_number);
+  };
+  fetchNextNumber();
+}, []);
 
   const fetchMasters = async () => {
     try {
@@ -69,13 +80,21 @@ export default function PSCList() {
   };
 
   const fetchPscs = async () => {
-    console.log("Fetch Pscs userRespId :", userRespId);
-    // const res = await axios.get('/api/psc');
-    const res = await axios.get('/api/psc', {
-      params: { userRespId }
-    });
+    try {
+      setLoading(true);
+      console.log("Fetch Pscs userRespId :", userRespId);
+      console.log("problemNumber :", problemNumber);
+      // const res = await axios.get('/api/psc');
+      const res = await axios.get('/api/psc', {
+        params: { userRespId }
+      });
 
-    setPscs(res.data || []);
+      setPscs(res.data || []);
+    } catch (err) {
+      console.error('fetchPscs failed', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value });
@@ -125,7 +144,7 @@ export default function PSCList() {
         ...form,
         status: 'Open',
         ticket_stage: 'Plan',
-        problem_number: form.problem_number || generateProblemNumber(),
+        problem_number: problemNumber,
         initiator_name:
           form.initiator_name ||
           (user && (user.userName || user.username || user.name || user.usermail)) ||
@@ -134,13 +153,15 @@ export default function PSCList() {
       };
 
       await axios.post('/api/psc', payload);
-      generateProblemNumber()
+      // generateProblemNumber()
+      // fetchNextNumber();
       //sendNotification('Card Created:101');
       //sendNotification(`${form.problem_number}`);
 
       fetchPscs();
       setForm(emptyForm());
       setShowForm(false);
+      setProblemNumber(true);
       window.location.reload();
 
 
@@ -195,6 +216,57 @@ export default function PSCList() {
       (psc.status || '').toLowerCase().includes(search)
     );
   });
+const renderpsctable = () => {
+  const sorted = [...filteredPSCs].sort((a, b) => {
+    if (a.status === "Completed" && b.status !== "Completed") return 1;
+    if (a.status !== "Completed" && b.status === "Completed") return -1;
+    const aTime = new Date(a.updated_at || a.created_at || a.date || 0).getTime();
+    const bTime = new Date(b.updated_at || b.created_at || b.date || 0).getTime();
+    return bTime - aTime;
+  });
+
+  // 2️⃣ Handle conditions BEFORE returning JSX
+  if (loading) {
+    return (
+      <tr>
+        <td colSpan="8" className="text-center">
+          <div className="spinner-border text-primary" role="status">
+            <span className="sr-only">Loading...</span>
+          </div>
+        </td>
+      </tr>
+    );
+  }
+
+  if (!sorted || sorted.length === 0) {
+    return (
+      <tr>
+        <td colSpan="8" className="text-center">No data available</td>
+      </tr>
+    );
+  }
+
+  // 3️⃣ Return mapping
+  return sorted.map(psc => (
+    <tr key={psc.id}>
+      <td>
+        <button
+          className="btn btn-link p-0"
+          onClick={() => openPreview(psc)}
+        >
+          {psc.problem_number || psc.problemNumber}
+        </button>
+      </td>
+      <td>{psc.initiator_name || psc.initiatorName}</td>
+      <td>{psc.date ? new Date(psc.date).toLocaleDateString('en-CA') : ''}</td>
+      <td>{psc.shift_name}</td>
+      <td>{psc.value_stream_line}</td>
+      <td>{psc.short_description || psc.shortDescription}</td>
+      <td>{psc.ticket_stage || psc.ticketStage}</td>
+      <td>{psc.status}</td>
+    </tr>
+  ));
+};
 
   const renderTable = () => (
     <div className="card mt-4 full-height">
@@ -226,43 +298,15 @@ export default function PSCList() {
                 <th>Date</th>
                 <th>Shift</th>
                 <th>Value Stream</th>
-                <th>Stage</th>
                 <th>Short Description</th>
+                <th>Stage</th>
                 <th>Status</th>
               </tr>
             </thead>
             <tbody>
+  {renderpsctable()}
+</tbody>
 
-              {filteredPSCs.length > 0 ? (
-                filteredPSCs.map(psc => (
-                  <tr key={psc.id}>
-                    <td>
-                      <button
-                        className='btn btn-link p-0'
-                        onClick={() => openPreview(psc)}
-                      >
-                        {psc.problem_number || psc.problemNumber}
-                      </button>
-                    </td>
-                    <td>{psc.initiator_name || psc.initiatorName}</td>
-                    <td>{psc.date ? new Date(psc.date).toLocaleDateString('en-CA') : ''}</td>
-                    <td>{masters.shifts.find(s => String(s.id) === String(psc.shift))?.shift_name || psc.shift}</td>
-                    <td>{psc.value_stream_line}</td>
-                    <td>{psc.ticket_stage || psc.ticketStage}</td>
-                    <td>{psc.short_description || psc.shortDescription}</td>
-                    <td>{psc.status}</td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="8" className="text-center">
-                    <div className="spinner-border text-primary" role="status">
-                      <span className="sr-only">Loading...</span>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
           </table>
         </div>
       </div>
@@ -282,7 +326,7 @@ export default function PSCList() {
               <input className='form-control'
                 name='problem_number'
                 value={form.problem_number}
-                onChange={e => setForm({ ...form, [e.target.name]: e.target.value })}
+                onChange={e => setProblemNumber({[e.target.name]: e.target.value })}
                 placeholder='Problem Number' required readOnly />
             </div>
             <div className='form-group col-md-2'>
@@ -301,12 +345,13 @@ export default function PSCList() {
               </select>
             </div>
             <div className='form-group col-md-2'>
-              <label>Value Stream</label>
+              <label>Value Stream <span style={{color:'red'}}>*</span></label>
               <select
                 className="form-control"
                 name="value_stream_line"
                 value={form.value_stream_line}
                 onChange={handleChange}
+                required
               >
                 <option value="">-- Value Stream --</option>
                 {masters.valuestreams.map(v => (
@@ -318,12 +363,13 @@ export default function PSCList() {
 
             </div>
             <div className='form-group col-md-2'>
-              <label>Line</label>
+              <label>Line<span style={{color:'red'}}>*</span></label>
               <select
                 className="form-control"
                 name="line_id"
                 value={form.line_id}
                 onChange={handleChange}
+                required
               >
                 <option value="">-- Line --</option>
                 {masters.lines

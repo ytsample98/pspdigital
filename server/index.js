@@ -122,7 +122,7 @@ const PORT = process.env.SERVER_PORT || 5000;
   try {
     // Test database connection before starting server
     const result = await pool.query('SELECT NOW()');
-    console.log(`✅ Database connected successfully at: ${result.rows[0].now}`);
+     console.log(`✅ Database connected successfully at: ${result.rows[0].now}`);
 
     // Try starting Express server
     const server = app.listen(PORT, () =>
@@ -209,7 +209,7 @@ const mapFullPscRow = async (pscRow) => {
   if (!pscRow) return null;
   const id = pscRow.id;
   // Get corrective action and department
-  const correctiveQ = `SELECT c.*, d.dept_name FROM corrective c LEFT JOIN department d ON c.corrective_assign_to = d.id WHERE c.psc_id = $1`;
+  const correctiveQ = `SELECT c.*, d.dept_name,u.username FROM corrective c LEFT JOIN department d ON c.corrective_assign_to = d.id left join users as u on u.id=c.done_by WHERE c.psc_id = $1`;
   const correctiveRes = await pool.query(correctiveQ, [id]);
   const corrective = correctiveRes.rows[0] || null;
 
@@ -289,7 +289,7 @@ app.get('/api/psc', async (req, res) => {
     const { userRespId } = req.query;
     // let q = 'SELECT * FROM psccard';
     // const params = [];
-    console.log("Fetch PSC card details userRespId :", userRespId)
+    // console.log("Fetch PSC card details userRespId :", userRespId)
     let escalationTable = ''; 
     let condition='';
     if (userRespId == 2) {
@@ -299,17 +299,22 @@ app.get('/api/psc', async (req, res) => {
       escalationTable = 'escalation_level2';
     } else if (userRespId == 4) {
       escalationTable = 'escalation_level3';
+      // console.log('in levl3')
     } else {
       escalationTable = 'escalation_level1';
       condition=  ' AND es1.user_rep_level = 0';
+      // console.log("wrong")
     }
 
     let q = `
-  SELECT ps.* 
+  SELECT ps.* ,s.shift_name,s.start_time,s.end_time,v.vl_name,l.line_name
   FROM psccard AS ps
   LEFT JOIN ${escalationTable} AS es1 
     ON es1.psccard_id = ps.id
-  WHERE es1.user_resp_id = $1  AND es1.user_rep_level = 0
+    left join shift as s on s.id=ps.shift
+    left join valuestream as v on v.vl_code=ps.value_stream_line
+    left join line as l on l.id=ps.line_id
+  WHERE es1.user_resp_id = $1  AND es1.user_rep_level = 0 order by ps.id DESC
 `;
     const params = [userRespId];
     //  if (userRespId == 2) {
@@ -322,6 +327,7 @@ app.get('/api/psc', async (req, res) => {
     // }
     // q += ' ORDER BY id DESC';
     const result = await pool.query(q, params);
+    console.log("Fetched PSC cards count:", result.rows.length);
     // Join all PSCs
     const joinedRows = await Promise.all(result.rows.map(mapFullPscRow));
     res.json(joinedRows);
@@ -405,6 +411,26 @@ app.post('/api/psc', async (req, res) => {
     client.release();
   }
 });
+
+app.get('/psccard/next-number', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT MAX(
+        CAST(NULLIF(REGEXP_REPLACE(problem_number, '[^0-9]', '', 'g'), '') AS INTEGER)
+      ) AS max_num
+      FROM psccard
+    `);
+
+    const maxNum = result.rows[0].max_num || 0;
+    const nextProblemNumber = `PSC${(maxNum + 1).toString().padStart(3, '0')}`;
+
+    res.json({ problem_number: nextProblemNumber });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Error generating next problem number');
+  }
+});
+
 app.get("/api/psccard/maxcount", async (req, res) => {
   try {
     const { rows } = await pool.query(`
@@ -438,7 +464,29 @@ app.put('/api/psc/:id', async (req, res) => {
   }
 });
 
+
+app.get('/api/psc/:id/corrective', async (req, res) => {
+  try {
+    const pscId = req.params.id;
+
+    const result = await pool.query(`
+     SELECT 
+           p.id,c.*,u.username,d.dept_name 
+         FROM psccard p
+         LEFT JOIN corrective c ON c.psc_id = p.id
+         left join users as u on u.id=c.done_by
+         left join department as d on d.id=c.corrective_assign_to
+         WHERE p.id = $1
+         GROUP BY p.id, c.id,u.username,d.dept_name;
+    `, [pscId]);
+console.log("corrective action fetch :", result.rows);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 // corrective action update
+
 app.put('/api/psc/:id/corrective', async (req, res) => {
   try {
     const { action_taken, done_by, corrective_assign_to, corrective_comments, userRespId } = req.body;
@@ -446,7 +494,6 @@ app.put('/api/psc/:id/corrective', async (req, res) => {
 
     try {
       await client.query('BEGIN');
-
       // Update or insert corrective action
       const correctiveResult = await client.query(
         `INSERT INTO corrective 
@@ -466,8 +513,8 @@ app.put('/api/psc/:id/corrective', async (req, res) => {
         `UPDATE psccard SET status = $1, ticket_stage = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3`,
         ['Work in Progress', 'Do', req.params.id]
       );
-      console.log("corrective save userRespId :", userRespId);
-      console.log("corrective save userRespId :", req.params.id,req.params.psc_id);
+      // console.log("corrective save userRespId :", userRespId);
+      // console.log("corrective save userRespId :", req.params.id,req.params.psc_id);
       if (userRespId == 2) {
         await client.query(
           `UPDATE escalation_level1 SET status = $1 WHERE psccard_id = $2`,
@@ -658,9 +705,9 @@ app.post('/api/psc/:id/countermeasure', async (req, res) => {
         `UPDATE psccard SET status = $1, ticket_stage = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3`,
         ['For Validation', 'Check', req.params.id]
       );
-      console.log('rootcause',req.params.id)
+      // console.log('rootcause',req.params.id)
 
-      console.log("corrective save userRespId :", userRespId);
+      // console.log("corrective save userRespId :", userRespId);
       if (userRespId == 2) {
         await pool.query(
           `UPDATE escalation_level1 SET status = $1 WHERE psccard_id = $2`,
@@ -702,7 +749,7 @@ app.post('/api/psc/:id/countermeasure', async (req, res) => {
       );
       console.log('rootcause',req.params.id)
 
-      console.log("corrective save userRespId :", userRespId);
+      // console.log("corrective save userRespId :", userRespId);
       if (userRespId == 2) {
         await pool.query(
           `UPDATE escalation_level1 SET status = $1 WHERE psccard_id = $2`,
@@ -757,7 +804,7 @@ app.post('/api/psc/:id/countermeasure', async (req, res) => {
        WHERE c.id = $1
        GROUP BY c.id` ,[cm.id]);
 
-      console.log(effcm,'lll',cm.id,pscRes)
+      // console.log(effcm,'lll',cm.id,pscRes)
 
       return res.json(effcm.rows)
       
@@ -918,11 +965,11 @@ app.get('/api/psc/:id/effectcheck', async (req, res) => {
 
 app.put('/api/psc/:id/effectcheck', async (req, res) => {
   try {
-    console.log('working')
+    // console.log('working')
     const { countermeasure_id, check_status, checked_by, remarks,userRespId } = req.body;
     if (!countermeasure_id) return res.status(400).json({ error: 'countermeasure_id is required' });
     if (!check_status) return res.status(400).json({ error: 'check_status is required' });
-    console.log(remarks)
+    // console.log(remarks)
 
     const client = await pool.connect();
     try {
@@ -997,7 +1044,7 @@ app.put('/api/psc/:id/effectcheck', async (req, res) => {
       );
 
 
-      console.log("corrective save userRespId :", userRespId);
+      // console.log("corrective save userRespId :", userRespId);
       if (userRespId == 2) {
         await client.query(
           `UPDATE escalation_level1 SET status = $1 WHERE psccard_id = $2`,
@@ -1265,11 +1312,11 @@ ORDER BY m.month_no;
       const totalClosed = closed_teamleader + closed_vsl + closed_plantlevel;
       let pending = raised_teamleader - totalClosed;
       if (pending < 0) pending = 0;
-      console.log('pending : ', pending);
+      // console.log('pending : ', pending);
       let competency = 0;
       const completed = raised_teamleader - pending;
       competency = Math.ceil((completed / raised_teamleader) * 100);
-      console.log("Competency % :", competency);
+      // console.log("Competency % :", competency);
       return {
         month: row.month,
         teamLeader: {
@@ -1298,5 +1345,55 @@ ORDER BY m.month_no;
     res.status(500).json({ error: err.message });
   }
 });
+
+// Monthly count of cards grouped by problem_type (S,Q,D,C,E) - returns one row per month with counts
+app.get('/api/psp/problem-type-monthly', async (req, res) => {
+  try {
+    const year = parseInt(req.query.year, 10) || new Date().getFullYear();
+
+    const sql = `WITH months AS (
+      SELECT generate_series(
+        make_date($1, 1, 1),
+        make_date($1, 12, 1),
+        interval '1 month'
+      ) AS month_start
+    )
+    SELECT
+      TO_CHAR(m.month_start, 'Mon') AS month,
+      EXTRACT(MONTH FROM m.month_start) as month_no,
+      COALESCE(SUM(CASE WHEN p.problem_type = 'S' THEN 1 ELSE 0 END),0) AS s,
+      COALESCE(SUM(CASE WHEN p.problem_type = 'Q' THEN 1 ELSE 0 END),0) AS q,
+      COALESCE(SUM(CASE WHEN p.problem_type = 'D' THEN 1 ELSE 0 END),0) AS d,
+      COALESCE(SUM(CASE WHEN p.problem_type = 'C' THEN 1 ELSE 0 END),0) AS c,
+      COALESCE(SUM(CASE WHEN p.problem_type = 'E' THEN 1 ELSE 0 END),0) AS e
+    FROM months m
+    LEFT JOIN psccard p
+      ON date_trunc('month', p.date) = date_trunc('month', m.month_start)
+      AND EXTRACT(YEAR FROM p.date) = $1
+    GROUP BY m.month_start
+    ORDER BY month_no;
+    `;
+
+    const result = await pool.query(sql, [year]);
+    // Convert counts to numbers
+    const data = result.rows.map(r => ({
+      month: r.month,
+      month_no: Number(r.month_no),
+      s: Number(r.s) || 0,
+      q: Number(r.q) || 0,
+      d: Number(r.d) || 0,
+      c: Number(r.c) || 0,
+      e: Number(r.e) || 0
+    }));
+    res.json(data);
+  } catch (err) {
+    console.error('❌ GET /api/psp/problem-type-monthly error:', err && err.stack || err);
+    res.status(500).json({ error: err.message || String(err) });
+  }
+});
+
+
+
+
 
 

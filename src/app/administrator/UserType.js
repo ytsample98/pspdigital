@@ -31,10 +31,13 @@ export default function UserType() {
           <div className="col-auto"><button className="btn btn-primary btn-sm" onClick={save}>{editing ? 'Update' : 'Create'}</button></div>
         </div>
         <table className="table table-sm table-bordered">
-          <thead><tr><th>Type</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Type</th><th>Edit</th></tr></thead>
           <tbody>
             {types.map(t=> (
-              <tr key={t.id}><td>{t.type_name}</td><td><button className="btn btn-sm btn-link" onClick={()=>edit(t)}>Edit</button> <button className="btn btn-sm btn-link text-danger" onClick={()=>remove(t.id)}>Delete</button></td></tr>
+              <tr key={t.id}><td>{t.type_name}</td>
+              <td><i className="mdi mdi-pencil" style={{ fontSize: '24px', color: '#2196F3', cursor: 'pointer' }} onClick={()=>edit(t)}></i> </td>
+              {/* <button className="btn btn-sm btn-link text-danger" onClick={()=>remove(t.id)}>Delete</button> */}
+              </tr>
             ))}
             {types.length===0 && <tr><td colSpan="2">No types</td></tr>}
           </tbody>

@@ -62,7 +62,20 @@ const CMInputRow = React.memo(function CMInputRow({ cm, onChange }) {
 /* -----------------------------
    TableView component (top-level)
    ----------------------------- */
-function TableView({ filtered, searchTerm, setSearchTerm, handleSelect }) {
+function TableView({ filtered, searchTerm, setSearchTerm, handleSelect, loading }) {
+  // Keep search input UI but mirror PSCList sorting and loading behavior
+  const sorted = React.useMemo(() => {
+    const arr = (filtered || []).slice();
+    arr.sort((a, b) => {
+      if (a.status === "Completed" && b.status !== "Completed") return 1;
+      if (a.status !== "Completed" && b.status === "Completed") return -1;
+      const aTime = new Date(a.updated_at || a.created_at || a.date || 0).getTime();
+      const bTime = new Date(b.updated_at || b.created_at || b.date || 0).getTime();
+      return bTime - aTime;
+    });
+    return arr;
+  }, [filtered]);
+
   return (
     <div className="card mt-4 full-height">
       <div className="card-body">
@@ -82,28 +95,13 @@ function TableView({ filtered, searchTerm, setSearchTerm, handleSelect }) {
                 <th>Date</th>
                 <th>Shift</th>
                 <th>Value Stream</th>
-                <th>Stage</th>
                 <th>Short Description</th>
+                <th>Stage</th>
                 <th>Status</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.length > 0 ? (
-                filtered.map((psc) => (
-                  <tr key={psc.id}>
-                    <td>
-                      <button className="btn btn-link p-0" onClick={() => handleSelect(psc)}>{psc.problemNumber || psc.problem_number}</button>
-                    </td>
-                    <td>{psc.initiatorName || psc.initiator_name}</td>
-                    <td>{psc.date ? new Date(psc.date).toLocaleDateString('en-CA') : ''}</td>
-                    <td>{psc.shift}</td>
-                    <td>{psc.valueStreamLine || psc.value_stream_line || psc.valueStream || psc.value_stream}</td>
-                    <td>{psc.ticketStage || psc.ticket_stage}</td>
-                    <td>{psc.shortDescription || psc.short_description}</td>
-                    <td>{psc.status}</td>
-                  </tr>
-                ))
-              ) : (
+              {loading ? (
                 <tr>
                   <td colSpan="8" className="text-center">
                     <div className="spinner-border text-primary" role="status">
@@ -111,6 +109,25 @@ function TableView({ filtered, searchTerm, setSearchTerm, handleSelect }) {
                     </div>
                   </td>
                 </tr>
+              ) : (!sorted || sorted.length === 0) ? (
+                <tr>
+                  <td colSpan="8" className="text-center">No data available</td>
+                </tr>
+              ) : (
+                sorted.map((psc) => (
+                  <tr key={psc.id}>
+                    <td>
+                      <button className="btn btn-link p-0" onClick={() => handleSelect(psc)}>{psc.problemNumber || psc.problem_number}</button>
+                    </td>
+                    <td>{psc.initiatorName || psc.initiator_name}</td>
+                    <td>{psc.date ? new Date(psc.date).toLocaleDateString('en-CA') : ''}</td>
+                     <td>{psc.shift_name}</td>
+                     <td>{psc.vl_name}</td>
+                    <td>{psc.shortDescription || psc.short_description}</td>
+                    <td>{psc.ticketStage || psc.ticket_stage}</td>
+                    <td>{psc.status}</td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>
@@ -123,7 +140,7 @@ function TableView({ filtered, searchTerm, setSearchTerm, handleSelect }) {
 /* -----------------------------
    PreviewView component (top-level)
    ----------------------------- */
-function PreviewView({ selected, user, setShowPreview, setSelected, setShowForm, setActiveTab ,loadremHistory,remRemarks}) {
+function PreviewView({ selected, user, setShowPreview, setSelected, setShowForm, setActiveTab ,loadremHistory,remRemarks,refreshPsc}) {
   if (!selected) return null;
   const hasAcceptedCM = selected.root_cause?.countermeasures?.some(cm => cm.status === 'Accepted');
   const canShowForm = !hasAcceptedCM;
@@ -136,7 +153,22 @@ function PreviewView({ selected, user, setShowPreview, setSelected, setShowForm,
       }}
       actions={canShowForm ? (
         <div>
-          <button className="btn btn-primary mr-2" onClick={() => { setShowForm(true); setShowPreview(false); setActiveTab(selected.root_cause ? 'cm' : 'root'); loadremHistory();}}>Add Root Cause</button>
+          <button
+            className="btn btn-primary mr-2"
+            onClick={async () => {
+              // Ensure the latest saved data is loaded before opening the form
+              try {
+                await refreshPsc(selected.id);
+              } catch (err) {
+                console.warn('refresh before opening form failed', err);
+              }
+              setShowForm(true);
+              setShowPreview(false);
+              setActiveTab(selected.root_cause ? 'cm' : 'root');
+              // load remarks/history after refresh
+              try { await loadremHistory(); } catch (e) { /* ignore */ }
+            }}
+          >Add Root Cause</button>
         </div>
       ) : null}
     />
@@ -281,7 +313,7 @@ function FormView({
       </div>
 
        <div className="mb-3">
-          <label>Remarks</label>
+          <label>Comments</label>
           <textarea
             className="form-control"
             value={latest.comments || ''}
@@ -290,7 +322,7 @@ function FormView({
         </div>
 
         <div className="mb-3">
-          <label>Remarks</label>
+          <label>Remarks from effectiveness check</label>
           <textarea
             className="form-control"
             value={remRemarks.map(r => r.reasons).join("\n")}
@@ -309,20 +341,22 @@ function FormView({
             <div className="mb-2"><strong>Short Desc:</strong> {selected.short_description || selected.shortDescription}</div>
           </div>
 
-          <button type="button" className="btn btn-danger" onClick={() => { setShowForm(false); setShowPreview(true); setRoot({
-      symptom: '',
-      finalCause: '',
-      why1: '',
-      why2: '',
-      why3: '',
-      why4: '',
-      why5: '',
-      countermeasures: [makeEmptyCm('temp-0')]
-    });
-    setUiState({});
-    setShowAddCm(false);
-    setText('');
-    setRows([]);}}>Back</button>
+          <button type="button" className="btn btn-danger" onClick={() => { setShowForm(false); setShowPreview(true);  
+    //       setRoot({
+    //   symptom: '',
+    //   finalCause: '',
+    //   why1: '',
+    //   why2: '',
+    //   why3: '',
+    //   why4: '',
+    //   why5: '',
+    //   countermeasures: [makeEmptyCm('temp-0')]
+    // });
+    // setUiState({});
+    // setShowAddCm(false);
+    // setText('');
+    // setRows([]);
+    }}>Back</button>
         </div>
 
         <Tabs activeKey={activeTab} onSelect={(k) => setActiveTab(k)} className="mb-3">
@@ -358,6 +392,7 @@ export default function RootCause() {
     countermeasures: [makeEmptyCm('temp-0')]
   });
   const [form, setForm] = useState({ description: '', date: '', address: '' });
+  const [loading, setLoading] = useState(true);
   const [reassign, setReassign] = useState({ remarks: '', assignTo: '' });
   const [showReassignSimple, setShowReassignSimple] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -402,6 +437,7 @@ useEffect(() => {
 
 
   const fetchPscs = useCallback(async () => {
+    setLoading(true);
     try {
       // const res = await axios.get('/api/psc');
       const user = (() => {
@@ -416,6 +452,8 @@ useEffect(() => {
       setPscs(res.data || []);
     } catch (e) {
       console.warn('fetch pscs failed', e);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -797,7 +835,7 @@ const loadremHistory = useCallback(async () => {
   return (
     <div>
       {!showPreview && !showForm && (
-        <TableView filtered={filtered} searchTerm={searchTerm} setSearchTerm={setSearchTerm} handleSelect={handleSelect} />
+        <TableView filtered={filtered} searchTerm={searchTerm} setSearchTerm={setSearchTerm} handleSelect={handleSelect} loading={loading} />
       )}
       {showPreview && (
         <PreviewView selected={selected} user={user} setShowPreview={setShowPreview} setSelected={setSelected} setShowForm={setShowForm} setActiveTab={setActiveTab}  loadremHistory={loadremHistory}  remRemarks={remRemarks}/>

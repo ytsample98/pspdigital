@@ -1,5 +1,11 @@
 ## Changelog
 
+##### v.4.0.4 - 2021-05-17
+* Revert module field to package.json, will release as major version bump
+
+##### v.4.0.3 - 2021-05-15
+* Add module field to package.json so autosize can be imported as an ES Module
+
 ##### v.4.0.2 - 2018-04-30
 * More specific detection of when to change overflow. Merges #361.
 
@@ -92,7 +98,7 @@
 
 ##### v.2.0.0 - 2015-02-25
 
-* Smaller, simplier code-base
+* Smaller, simpler code-base
 * New API.  Example usage: `autosize(document.querySelectorAll(textarea));`
 * Dropped jQuery dependency
 * Dropped IE7-IE8 support

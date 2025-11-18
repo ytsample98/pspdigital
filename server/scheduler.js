@@ -63,11 +63,16 @@ cron.schedule(`* * * * * *`, async () => {
 
 
             // ========== LEVEL 2 → LEVEL 3 ==========
-            const resultlevel2 = await db.query(`
+        //     const resultlevel2 = await db.query(`
+        //     SELECT psccard_id,escalation_id,status,timestamp_escalated 
+        //         FROM escalation_level2
+        //         WHERE timestamp_escalated  >= NOW() - INTERVAL '${level2Duration} DAY'
+        //         AND timestamp_escalated  < NOW() - INTERVAL '${level1Duration} DAY' AND status='Open' AND user_resp_id=3 AND user_rep_level=0
+        // `);
+        const resultlevel2 = await db.query(`
             SELECT psccard_id,escalation_id,status,timestamp_escalated 
                 FROM escalation_level2
-                WHERE timestamp_escalated  >= NOW() - INTERVAL '${level2Duration} DAY'
-                AND timestamp_escalated  < NOW() - INTERVAL '${level1Duration} DAY' AND status='Open' AND user_resp_id=3 AND user_rep_level=0
+                WHERE timestamp_escalated  < NOW() - INTERVAL '${level2Duration} DAY' AND status='Open' AND user_resp_id=3 AND user_rep_level=0
         `);
             const level2Records = resultlevel2.rows;
             if (level2Records.length > 0) {
