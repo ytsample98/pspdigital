@@ -3,6 +3,10 @@ import { Switch, Route, Redirect } from 'react-router-dom';
 
 import Spinner from '../app/shared/Spinner';
 import OrganizationPage from './administrator/OrganizationPage';
+import 'primereact/resources/themes/lara-light-blue/theme.css';
+import 'primereact/resources/primereact.min.css';
+import 'primeicons/primeicons.css';
+import 'primeflex/primeflex.css';
 
 const Dashboard = lazy(() => import('./dashboard/Dashboard'));
 const Register= lazy(() => import('./user-pages/Register'));

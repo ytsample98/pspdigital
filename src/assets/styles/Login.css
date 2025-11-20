@@ -50,6 +50,8 @@ body, html, #root { height: 100%; margin: 0; font-family: 'Roboto', system-ui, -
   text-align: center;
   font-weight: 500;
   margin-bottom: 10px;
+  border-bottom: 1px solid #061033;
+  background-color: white;
 }
 
 /* Layout container */
@@ -117,13 +119,13 @@ body, html, #root { height: 100%; margin: 0; font-family: 'Roboto', system-ui, -
 .glass-card {
   width: 100%;
   max-width: var(--card-width);
-  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+  background: white;
   border: 1px solid var(--glass-border);
   border-radius: 12px;
   padding: 30px 28px;
   box-shadow: 0 10px 40px rgba(2,6,23,0.6);
-  backdrop-filter: blur(8px) saturate(120%);
-  -webkit-backdrop-filter: blur(8px) saturate(120%);
+  /* backdrop-filter: blur(8px) saturate(120%);
+  -webkit-backdrop-filter: blur(8px) saturate(120%); */
   color: #eaf6ff;
     margin-top: 50px;
 }
@@ -133,16 +135,18 @@ body, html, #root { height: 100%; margin: 0; font-family: 'Roboto', system-ui, -
   margin: 0;
   font-size: 1.8rem;
   font-weight: 500;
-  color: #ffffff;
+  color: #000000;
+  border: #000000;
 }
 .card-header p {
-  font-weight: 500;
+  font-weight: 600;
   font-size: 1.3rem;
-  color: #ffffff;
+  color: #204fb4;
 }
 .card-header .muted {
   margin-top: 6px;
-  color: rgba(255,255,255,0.7);
+  /* color: rgb(255, 255, 255);
+   */background-color: white;
   font-weight: 300;
   font-size: 0.95rem;
 }
@@ -169,10 +173,10 @@ body, html, #root { height: 100%; margin: 0; font-family: 'Roboto', system-ui, -
 /* Inputs - subtle lines with white placeholder */
 .glass-card .form-control {
   background: transparent;
-  border: none;
-  border-bottom: 1px solid rgba(255,255,255,0.12);
+  border: black;
+  border-bottom: 1px solid #e0e7ef;
   border-radius: 0;
-  color: #fff;
+  color: #080000f4;
   padding-left: 0;
   padding-right: 0;
   padding-top: 12px;
@@ -181,7 +185,7 @@ body, html, #root { height: 100%; margin: 0; font-family: 'Roboto', system-ui, -
   box-shadow: none;
 }
 .glass-card .form-control::placeholder {
-  color: rgba(255,255,255,0.55);
+  color: rgba(57, 54, 54, 0.794);
   font-weight: 500;
 
 }
@@ -221,7 +225,7 @@ footer {
   bottom: 20px;
   width: 100%;
   text-align: center;
-  color: #fff;
+  color: #180606;
   font-size: 20px;
   letter-spacing: 0.5px;
 }

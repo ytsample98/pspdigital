@@ -81,3 +81,10 @@
 .legend-red { background-color: #ff6b6b; }
 .legend-yellow { background-color: #ffdd57; }
 .legend-green { background-color: #51cf66; }
+
+
+
+.p-datatable .p-column-header-content {
+    justify-content: center !important;
+    text-align: center !important;
+}

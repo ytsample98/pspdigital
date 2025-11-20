@@ -2,7 +2,7 @@
 
 .sidebar {
   min-height: calc(100vh - #{$navbar-height});
-  background: $sidebar-gradient;
+  background-color: #004aad;
   font-family: $type1;
   padding: 0;
   width: $sidebar-width-lg;
@@ -121,80 +121,91 @@
         }
       }
 
-      .nav-link {
-        align-items: center;
-        display: flex;
-        padding: $sidebar-menu-padding;
-        white-space: nowrap;
-        color: $sidebar-light-menu-color;
+        .nav-link {
+          align-items: center;
+          display: flex;
+          padding: $sidebar-menu-padding;
+          white-space: nowrap;
+          color: $sidebar-light-menu-color;
 
-        .rtl & {
-          padding: $sidebar-menu-padding-rtl;
-        }
-
-        i {
-          &.menu-arrow {
-            margin-left: auto;
-            margin-right: 0;
-            transition-duration: 0.2s;
-            transition-property: transform;
-            transition-timing-function: ease-in;
-
-            &:before {
-              content: "\F054";
-              font-family: "Material Design Icons";
-              font-size: 18px;
-              line-height: 1;
-              font-style: normal;
-              vertical-align: middle;
-              color: $sidebar-light-menu-arrow-color;
-            }
+          .rtl & {
+            padding: $sidebar-menu-padding-rtl;
           }
-        }
-
-        &[aria-expanded="true"] {
 
           i {
             &.menu-arrow {
-              transform: rotate(90deg);
+              margin-left: auto;
+              margin-right: 0;
+              transition-duration: 0.2s;
+              transition-property: transform;
+              transition-timing-function: ease-in;
+
+              &:before {
+                content: "\F054";
+                font-family: "Material Design Icons";
+                font-size: 18px;
+                line-height: 1;
+                font-style: normal;
+                vertical-align: middle;
+                color: $sidebar-light-menu-arrow-color;
+              }
+            }
+          }
+
+          &[aria-expanded="true"] {
+
+            i {
+              &.menu-arrow {
+                transform: rotate(90deg);
+              }
+            }
+          }
+
+          /* Ensure menu icons are always visible (including minimized state) */
+          .menu-icon {
+            display: inline-block;
+            margin-right: 1.25rem;
+            width: $sidebar-icon-size;
+            line-height: 1;
+            font-size: 18px;
+            color: $sidebar-light-menu-icon-color;
+
+            .rtl & {
+              margin-right: 0;
+              margin-left: 1.25rem;
+            }
+          }
+
+          .menu-title {
+            color: inherit;
+            display: inline-block;
+            font-size: $sidebar-menu-font-size;
+            line-height: 1;
+            vertical-align: middle;
+            font-weight: 500;
+          }
+
+          .badge {
+            margin-left: auto;
+          }
+
+          /* Show the selected background color when hovering as well */
+          &:hover {
+            color: $sidebar-light-menu-hover-color;
+            background: #215cb0;
+            padding-left: 65px;
+
+            .menu-title {
+              color: $sidebar-light-menu-hover-color;
+            }
+            &:before {
+              border-color: #fff;
             }
           }
         }
 
-        .menu-icon {
-          display: none;
-          margin-right: 1.25rem;
-          width: $sidebar-icon-size;
-          line-height: 1;
-          font-size: 18px;
-          color: $sidebar-light-menu-icon-color;
-
-          .rtl & {
-            margin-right: 0;
-            margin-left: 1.25rem;
-          }
-        }
-
-        .menu-title {
-          color: inherit;
-          display: inline-block;
-          font-size: $sidebar-menu-font-size;
-          line-height: 1;
-          vertical-align: middle;
-          font-weight: 500;
-        }
-
-        .badge {
-          margin-left: auto;
-        }
-
-        &:hover {
-          color: $sidebar-navlink-menu-item-hover-color;
-        }
-      }
-
       &.active {
-        background: $sidebar-light-menu-hover-bg;
+        background:#215cb0;
 
         >.nav-link {
           color: $sidebar-light-menu-active-color;
@@ -287,7 +298,7 @@
           height: 10px;
           border-radius: 100%;
           border: 2px solid $sidebar-nav-item-dot-color;
-          display: block;
+          display: none;
 
           .rtl & {
             left: auto;
@@ -309,7 +320,7 @@
         &:hover {
           &:not(.nav-profile):not(.hover-open) {
             >.nav-link:not([aria-expanded="true"]) {
-              background: $sidebar-light-menu-hover-bg;
+              background: #215cb0;
               padding-left: 65px;
 
               .rtl & {

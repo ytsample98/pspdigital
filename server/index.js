@@ -221,7 +221,26 @@ const mapFullPscRow = async (pscRow) => {
   // Get countermeasures (new column names: description, target_date, type, cm_status)
   let countermeasures = [];
   if (rootCause) {
-    const cmQ = `SELECT id, root_cause_id, assigned_to, assigned_remarks, description, target_date, type, created_by, cm_status, created_at, updated_at,comments FROM countermeasure WHERE root_cause_id = $1 ORDER BY id ASC`;
+    // const cmQ = `SELECT id, root_cause_id, assigned_to, assigned_remarks, description, target_date, type, created_by, cm_status, created_at, updated_at,comments FROM countermeasure WHERE root_cause_id = $1 ORDER BY id ASC`;
+   const cmQ =  `SELECT cm.*,u.username,s.shift_name FROM countermeasure AS cm
+          LEFT JOIN users AS u 
+              ON u.id = cm.created_by
+          LEFT JOIN shift AS s
+              ON (
+                  (
+                      s.start_time < s.end_time 
+                      AND cm.created_at::time BETWEEN s.start_time AND s.end_time
+                  )
+                  OR
+                  (
+                      s.start_time > s.end_time 
+                      AND (
+                            cm.created_at::time >= s.start_time 
+                            OR cm.created_at::time <= s.end_time
+                          )
+                  )
+              )
+          WHERE root_cause_id = $1;`
     const cmRes = await pool.query(cmQ, [rootCause.id]);
     // Map row fields to frontend-friendly names
     countermeasures = cmRes.rows.map(r => ({
@@ -238,7 +257,9 @@ const mapFullPscRow = async (pscRow) => {
       cm_status: r.cm_status,
       createdAt: r.created_at,
       updatedAt: r.updated_at,
-      comments:r.comments
+      comments:r.comments,
+      creatorName: r.username,
+      cmshiftName: r.shift_name
     }));
   }
 
@@ -275,11 +296,12 @@ const mapFullPscRow = async (pscRow) => {
     root_cause: rootCause ? {
       ...rootCause,
       final_cause: rootCause.final_cause,
+      symptom: rootCause.symptom,
       countermeasures // attach array of CMs
     } : null,
     effMap,
-
   };
+  
 
 };
 
@@ -327,7 +349,7 @@ app.get('/api/psc', async (req, res) => {
     // }
     // q += ' ORDER BY id DESC';
     const result = await pool.query(q, params);
-    console.log("Fetched PSC cards count:", result.rows.length);
+    // console.log("Fetched PSC cards count:", result.rows.length);
     // Join all PSCs
     const joinedRows = await Promise.all(result.rows.map(mapFullPscRow));
     res.json(joinedRows);
@@ -425,6 +447,7 @@ app.get('/psccard/next-number', async (req, res) => {
     const nextProblemNumber = `PSC${(maxNum + 1).toString().padStart(3, '0')}`;
 
     res.json({ problem_number: nextProblemNumber });
+    // console.log(nextProblemNumber)
   } catch (err) {
     console.error(err);
     res.status(500).send('Error generating next problem number');
@@ -554,7 +577,7 @@ app.put('/api/psc/:id/corrective', async (req, res) => {
 // root cause update
 app.put('/api/psc/:id/rootcause', async (req, res) => {
   try {
-    const { why1, why2, why3, why4, why5, final_cause, filled_by, countermeasures,userRespId } = req.body;
+    const { why1, why2, why3, why4, why5, final_cause,symptom, filled_by, countermeasures,userRespId } = req.body;
     const client = await pool.connect();
 
     try {
@@ -563,15 +586,16 @@ app.put('/api/psc/:id/rootcause', async (req, res) => {
       // Upsert root_cause row
       const rcResult = await client.query(
         `INSERT INTO root_cause 
-        (psccard_id, why1, why2, why3, why4, why5, final_cause, filled_by)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        (psccard_id, why1, why2, why3, why4, why5, final_cause, symptom, filled_by)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         ON CONFLICT (psccard_id) 
         DO UPDATE SET 
           why1 = $2, why2 = $3, why3 = $4, why4 = $5, why5 = $6,
           final_cause = $7,
-          filled_by = $8, updated_at = CURRENT_TIMESTAMP
+          symptom = $8,
+          filled_by = $9, updated_at = CURRENT_TIMESTAMP
         RETURNING *`,
-        [req.params.id, why1, why2, why3, why4, why5, final_cause, filled_by]
+        [req.params.id, why1, why2, why3, why4, why5, final_cause, symptom, filled_by]
       );
 
       const rootCauseRow = rcResult.rows[0];

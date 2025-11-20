@@ -138,17 +138,14 @@ onRouteChanged() {
       <nav className="sidebar sidebar-offcanvas" id="sidebar">
        <div className="sidebar-brand-wrapper d-flex flex-column align-items-center justify-content-center" style={{ height: 120 }}>
 <div className="sidebar-brand-wrapper d-flex flex-column align-items-center justify-content-center" style={{ height: 120 }}>
-  {document.body.classList.contains('sidebar-icon-only') ? (
-    <span style={{ fontWeight: 700, fontSize: 24, color: '#fff' }}>WP</span>
-  ) : (
-    <div style={{ display: 'flex', alignItems: 'center', flexDirection: 'column', gap: 8 }}>
-      <img
-        src={require("../../assets/images/Workprologo.png")}
-        alt="WorkPro Logo"
-        style={{ height: 75, objectFit: "contain" }}
-      />
-    </div>
-  )}
+  {/* Always show an icon/logo; use a shorter height when sidebar is minimized (sidebar-icon-only) */}
+  <div style={{ display: 'flex', alignItems: 'center', flexDirection: 'column', gap: 8 }}>
+    <img
+      src={require("../../assets/images/Workprobluewhite.png")}
+      alt="WorkPro Logo"
+      style={{ height: document && document.body && document.body.classList.contains('sidebar-icon-only') ? 48 : 100, objectFit: "contain" }}
+    />
+  </div>
 </div>
 
 </div>
@@ -157,7 +154,7 @@ onRouteChanged() {
       
           <li className={ this.isPathActive('/dashboard') ? 'nav-item active' : 'nav-item' }>
             <Link className="nav-link" to="/dashboard">
-              <i className="mdi mdi-television menu-icon"></i>
+              <i className="mdi mdi-television menu-icon" style={{ display: 'inline-block' }}></i>
               <span className="menu-title"><Trans>Dashboard</Trans></span>
             </Link>
           </li>
@@ -166,7 +163,7 @@ onRouteChanged() {
           {can('psclist') && (
             <li className={ this.isPathActive('/PSCList') ? 'nav-item active' : 'nav-item' }>
               <Link className="nav-link" to="/PSCList">
-                <i className="mdi mdi-crop-portrait menu-icon"></i>
+                  <i className="mdi mdi-crop-portrait menu-icon" style={{ display: 'inline-block' }}></i>
                 <span className="menu-title"><Trans>Problem Solving Card</Trans></span>
               </Link>
             </li>
@@ -175,7 +172,7 @@ onRouteChanged() {
           {can('corrective') && (
             <li className={ this.isPathActive('/CorrectiveAction') ? 'nav-item active' : 'nav-item' }>
               <Link className="nav-link" to="/CorrectiveAction">
-                <i className="mdi mdi-logout-variant menu-icon"></i>
+                <i className="mdi mdi-logout-variant menu-icon" style={{ display: 'inline-block' }}></i>
                 <span className="menu-title"><Trans>Containment Action</Trans></span>
               </Link>
             </li>
@@ -184,7 +181,7 @@ onRouteChanged() {
           {can('rootcause') && (
             <li className={ this.isPathActive('/RootCause') ? 'nav-item active' : 'nav-item' }>
               <Link className="nav-link" to="/RootCause">
-                <i className="mdi mdi-chart-line menu-icon"></i>
+                <i className="mdi mdi-chart-line menu-icon" style={{ display: 'inline-block' }}></i>
                 <span className="menu-title"><Trans>Root Cause Analysis</Trans></span>
               </Link>
             </li>
@@ -193,7 +190,7 @@ onRouteChanged() {
           {can('effect') && (
             <li className={ this.isPathActive('/EffectCheck') ? 'nav-item active' : 'nav-item' }>
               <Link className="nav-link" to="/EffectCheck">
-                <i className="mdi mdi-check-circle-outline menu-icon"></i>
+                <i className="mdi mdi-check-circle-outline menu-icon" style={{ display: 'inline-block' }}></i>
                 <span className="menu-title"><Trans>Effectiveness Check</Trans></span>
               </Link>
             </li>
@@ -203,7 +200,7 @@ onRouteChanged() {
           {can('administrator') && (
             <li className={ this.isPathActive('/administrator') ? 'nav-item active' : 'nav-item' }>
               <Link className="nav-link" to="/administrator">
-                <i className="mdi mdi-account-box-outline menu-icon"></i>
+                <i className="mdi mdi-account-box-outline menu-icon" ></i>
                 <span className="menu-title"><Trans>Administrator</Trans></span>
               </Link>
             </li>

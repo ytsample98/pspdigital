@@ -13,8 +13,6 @@ import { InputIcon } from 'primereact/inputicon';
 import { InputText } from 'primereact/inputtext';
 import { FilterMatchMode } from 'primereact/api';
 import { Tag } from 'primereact/tag';
-import toast, { Toaster } from "react-hot-toast";
-
 
 // Small helper to create an empty CM row
 const makeEmptyCm = (tempId = null) => ({
@@ -88,15 +86,14 @@ function TableView({ filtered, searchTerm, setSearchTerm, handleSelect, loading 
   
 
   // // Keep the first post-load snapshot so we don't keep re-rendering/updating the table repeatedly
-  // const initialCapturedRef = React.useRef(null);
-  // React.useEffect(() => {
-  //   if (!loading && initialCapturedRef.current === null) {
-  //     initialCapturedRef.current = computed;
-  //   }
-  // }, [loading, computed]);
+  const initialCapturedRef = React.useRef(null);
+  React.useEffect(() => {
+    if (!loading && initialCapturedRef.current === null) {
+      initialCapturedRef.current = computed;
+    }
+  }, [loading, computed]);
 
-  // const rowsToRender = initialCapturedRef.current || (loading ? [] : computed);
-  const rowsToRender = computed;
+  const rowsToRender = initialCapturedRef.current || (loading ? [] : computed);
 
   const [filters, setFilters] = useState({
   global: { value: null, matchMode: FilterMatchMode.CONTAINS }
@@ -334,21 +331,18 @@ function PreviewView({ selected, user, setShowPreview, setSelected, setShowForm,
             className="btn btn-primary mr-2"
             onClick={async () => {
               // Ensure the latest saved data is loaded before opening the form
-              let joined = null;
               try {
-                joined = await refreshPsc(selected.id);
+                await refreshPsc(selected.id);
               } catch (err) {
                 console.warn('refresh before opening form failed', err);
               }
-              // open the form and set the active tab based on the refreshed data
               setShowForm(true);
               setShowPreview(false);
-              // setActiveTab((joined && joined.root_cause) ? 'cm' : 'root');
+              setActiveTab(selected.root_cause ? 'cm' : 'root');
               // load remarks/history after refresh
               try { await loadremHistory(); } catch (e) { /* ignore */ }
             }}
-          >{selected && selected.root_cause ? 'Add Countermeasure' : 'Add Root Cause'}</button>
-            {/* >Add RCA</button> */}
+          >Add Root Cause</button>
         </div>
       ) : null}
     />
@@ -396,121 +390,121 @@ function FormView({
   const showRootTab = !selected.root_cause;
 
   // build rootTab and cmTab inline (hooks are allowed here if needed)
-  // const rootTab = (
-  //   <Tab eventKey="root" title="Root Cause Analysis">
-  //     <form onSubmit={saveRootAndNext}>
-  //       <div className="form-group">
-  //         <label>Symptom</label>
-  //         <input name="symptom" value={root.symptom || ''} onChange={handleChange} className="form-control" />
-  //       </div>
+  const rootTab = (
+    <Tab eventKey="root" title="Root Cause Analysis">
+      <form onSubmit={saveRootAndNext}>
+        <div className="form-group">
+          <label>Symptom</label>
+          <input name="symptom" value={root.symptom || ''} onChange={handleChange} className="form-control" />
+        </div>
 
-  //       <div className="form-row">
-  //         {[1, 2, 3, 4, 5].map(i => (
-  //           <div className="form-group col-md-4" key={i}>
-  //             <label>Why {i} {i <= 3 && <span style={{ color: 'red' }}>*</span>}</label>
-  //             <textarea name={`why${i}`} value={root[`why${i}`] || ''} onChange={handleChange} className="form-control" rows={4} />
-  //           </div>
-  //         ))}
-  //       </div>
+        <div className="form-row">
+          {[1, 2, 3, 4, 5].map(i => (
+            <div className="form-group col-md-4" key={i}>
+              <label>Why {i} {i <= 3 && <span style={{ color: 'red' }}>*</span>}</label>
+              <textarea name={`why${i}`} value={root[`why${i}`] || ''} onChange={handleChange} className="form-control" rows={4} />
+            </div>
+          ))}
+        </div>
 
-  //       <div className="form-group">
-  //         <label>Final Cause <span style={{ color: 'red' }}>*</span></label>
-  //         <textarea name="finalCause" value={root.finalCause || ''} onChange={handleChange} className="form-control" rows={3} required />
-  //       </div>
+        <div className="form-group">
+          <label>Final Cause <span style={{ color: 'red' }}>*</span></label>
+          <textarea name="finalCause" value={root.finalCause || ''} onChange={handleChange} className="form-control" rows={3} required />
+        </div>
 
-  //       <div className="fixed-card-footer text-right p-3 border-top bg-white">
-  //         <button type="button" className="btn btn-primary ml-2" onClick={saveRootAndNext}>Save Root Cause & Next</button>
-  //       </div>
-  //     </form>
-  //   </Tab>
-  // );
+        <div className="fixed-card-footer text-right p-3 border-top bg-white">
+          <button type="button" className="btn btn-primary ml-2" onClick={saveRootAndNext}>Save Root Cause & Next</button>
+        </div>
+      </form>
+    </Tab>
+  );
 
  
 
-//   const cmTab = (
+  const cmTab = (
     
-//     <Tab eventKey="cm" title="Countermeasure & Effect Check">
-//      {(showAddCm)  && (
-//         console.log('Rendering Add Countermeasure section', latest,showAddCm),
-//   <> 
-//       <h5><b>Countermeasure History</b></h5>
+    <Tab eventKey="cm" title="Countermeasure & Effect Check">
+     {(showAddCm)  && (
+        console.log('Rendering Add Countermeasure section', latest,showAddCm),
+  <> 
+      <h5><b>Countermeasure History</b></h5>
 
-//       <h5><b>Add Countermeasure</b></h5>
-//       <CMInputRow cm={latest} onChange={handleCountermeasureChange} />
-//         </>
-// )}
-//       <div className="mt-3">
-//         <button type="button" className="btn btn-primary" onClick={() => {saveCountermeasure(); }}>Save Countermeasure</button>
-//       </div>
+      <h5><b>Add Countermeasure</b></h5>
+      <CMInputRow cm={latest} onChange={handleCountermeasureChange} />
+        </>
+)}
+      <div className="mt-3">
+        <button type="button" className="btn btn-primary" onClick={() => {saveCountermeasure(); }}>Save Countermeasure</button>
+      </div>
 
-//       <div className="table-responsive mb-3 mt-3">
-//         <table className="table table-bordered">
-//           <thead>
-//             <tr>
-//               <th>Description</th>
-//               <th>Target Date</th>
-//               <th>Type</th>
-//               <th>Status</th>
-//               {/* <th>Comments</th> */}
-//               <th>Action</th>
-//               <th>Remarks</th>
-//             </tr>
-//           </thead>
-//           <tbody>
-//             {(countermeasures.filter(cm => cm.id).length) ? (
-//               countermeasures.filter(cm => cm.id).map((cm, idx) => {
-//                 // const cmKey = cm.id ? `id-${cm.id}` : (cm.tempId || `idx-${idx}`);
-//                   // const cmKey = getCmKey(cm, idx);  
-//                   const cmKey = getCmKey(cm, idx);
-//                  console.log(`Rendering CM row: index=${idx}, cmKey=${cmKey}`, cm, uiState[cmKey]);
-//                 return (
-//                   <tr key={cmKey}>
-//                     <td>{cm.description}</td>
-//                     <td>{cm.targetDate}</td>
-//                     <td>{cm.type}</td>
-//                     <td>{badgeForStatus(cm.cm_status)}</td>
-//                     {/* <td>
-//                       <button type="button" className="btn btn-link p-0" onClick={() => openCommentsDialog(cm)}>Comments</button>
-//                     </td> */}
-//                     <td>
-//                       <input type="checkbox" checked={uiState[cmKey]?.actionTaken || false} onChange={(e) => handleActionToggle(cmKey, e.target.checked)} />
-//                     </td>
-//                     <td>
-//                       {uiState[cmKey]?.showRemarks ? (
-//                         <input type="text" className="form-control" value={uiState[cmKey]?.remarks || ''} onChange={(e) => handleRemarksChange(cmKey, e.target.value)} placeholder="Enter remarks" />
-//                       ) : null}
-//                     </td>
-//                   </tr>
-//                 );
-//               })
-//             ) : (
-//               <tr>
-//                 <td colSpan={7} className="text-center">No countermeasures yet</td>
-//               </tr>
-//             )}
-//           </tbody>
-//         </table>
-//       </div>
+      <div className="table-responsive mb-3 mt-3">
+        <table className="table table-bordered">
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th>Target Date</th>
+              <th>Type</th>
+              <th>Status</th>
+              {/* <th>Comments</th> */}
+              <th>Action</th>
+              <th>Remarks</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(countermeasures.filter(cm => cm.id).length) ? (
+              countermeasures.filter(cm => cm.id).map((cm, idx) => {
+                // const cmKey = cm.id ? `id-${cm.id}` : (cm.tempId || `idx-${idx}`);
+                  // const cmKey = getCmKey(cm, idx);  
+                  const cmKey = getCmKey(cm, idx);
+                 console.log(`Rendering CM row: index=${idx}, cmKey=${cmKey}`, cm, uiState[cmKey]);
+                return (
+                  <tr key={cmKey}>
+                    <td>{cm.description}</td>
+                    <td>{cm.targetDate}</td>
+                    <td>{cm.type}</td>
+                    <td>{badgeForStatus(cm.cm_status)}</td>
+                    {/* <td>
+                      <button type="button" className="btn btn-link p-0" onClick={() => openCommentsDialog(cm)}>Comments</button>
+                    </td> */}
+                    <td>
+                      <input type="checkbox" checked={uiState[cmKey]?.actionTaken || false} onChange={(e) => handleActionToggle(cmKey, e.target.checked)} />
+                    </td>
+                    <td>
+                      {uiState[cmKey]?.showRemarks ? (
+                        <input type="text" className="form-control" value={uiState[cmKey]?.remarks || ''} onChange={(e) => handleRemarksChange(cmKey, e.target.value)} placeholder="Enter remarks" />
+                      ) : null}
+                    </td>
+                  </tr>
+                );
+              })
+            ) : (
+              <tr>
+                <td colSpan={7} className="text-center">No countermeasures yet</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
 
-//        <div className="mb-3">
-//           <label>Comments</label>
-//           <textarea
-//             className="form-control"
-//             value={latest.comments || ''}
-//             rows={3} readOnly style={{ minHeight: '100px', maxHeight: '300px' }}
-//           />
-//         </div>
+       <div className="mb-3">
+          <label>Comments</label>
+          <textarea
+            className="form-control"
+            value={latest.comments || ''}
+            rows={3} readOnly style={{ minHeight: '100px', maxHeight: '300px' }}
+          />
+        </div>
 
-//         <div className="mb-3">
-//           <label>Remarks from effectiveness check</label>
-//           <textarea
-//             className="form-control"
-//             value={remRemarks.map(r => r.reasons).join("\n")}
-//             rows={3} readOnly style={{ minHeight: '100px', maxHeight: '300px' }}
-//           />
-//         </div>
-//     </Tab>
-//   );
+        <div className="mb-3">
+          <label>Remarks from effectiveness check</label>
+          <textarea
+            className="form-control"
+            value={remRemarks.map(r => r.reasons).join("\n")}
+            rows={3} readOnly style={{ minHeight: '100px', maxHeight: '300px' }}
+          />
+        </div>
+    </Tab>
+  );
 
   return (
     <div className="card full-height">
@@ -521,8 +515,7 @@ function FormView({
             <div className="mb-2"><strong>Short Desc:</strong> {selected.short_description || selected.shortDescription}</div>
           </div>
 
-          <button type="button" className="btn btn-danger" onClick={() => { setShowForm(false); setShowPreview(false); 
-         window.location.assign(window.location.href); 
+          <button type="button" className="btn btn-danger" onClick={() => { setShowForm(false); setShowPreview(false);  
     //       setRoot({
     //   symptom: '',
     //   finalCause: '',
@@ -540,157 +533,9 @@ function FormView({
     }}>Exit</button>
         </div>
 
-        {/* <Tabs activeKey={activeTab} onSelect={(k) => setActiveTab(k)} className="mb-3">
+        <Tabs activeKey={activeTab} onSelect={(k) => setActiveTab(k)} className="mb-3">
           {showRootTab && rootTab}
           {cmTab}
-        </Tabs> */}
-        
-        <Tabs activeKey={activeTab} onSelect={(k) => setActiveTab(k)} className="mb-3">
-          <Tab eventKey="root" title="Root Cause Analysis" disabled={!!selected?.root_cause}>
-          
-          {!selected?.root_cause && (
-            // <Tab eventKey="root" title="Root Cause Analysis">
-              <form onSubmit={saveRootAndNext} >
-                <div className="form-group">
-                  <label>Symptom</label>
-                  <input
-                    name="symptom"
-                    value={root.symptom}
-                    onChange={handleChange}
-                    className="form-control"
-                  />
-                </div>
-
-                <div className="form-row">
-                  {[1, 2, 3, 4, 5].map(i => (
-                    <div className="form-group col-md-4" key={i}>
-                      <label>
-                        Why {i} {i <= 3 && <span style={{ color: 'red' }}>*</span>}
-                      </label>
-                      <textarea
-                        name={`why${i}`}
-                        value={root[`why${i}`]}
-                        onChange={handleChange}
-                        className="form-control"
-                        rows={4}
-                        required={i <= 3} 
-                        
-                      />
-                    </div>
-                  ))}
-                </div>
-               
-
-
-                <div className="form-group">
-                  <label>Final Cause <span style={{ color: 'red' }}>*</span></label>
-                  <textarea
-                    name="finalCause"
-                    value={root.finalCause}
-                    onChange={handleChange}
-                    className="form-control"
-                    rows={3}
-                    required
-                  />
-                </div>
-
-                <div className="fixed-card-footer text-right p-3 border-top bg-white">
-                  <button type="button" 
-                  className="btn btn-primary"  onClick={saveRootAndNext}
-                  >
-                    Save Root Cause & Next
-                  </button>
-                </div>
-              </form>
-            // </Tab>
-          )}
-          </Tab>
-
-          <Tab eventKey="cm" title="Countermeasure & Effect Check" disabled={!selected?.root_cause}>
-            <div>
-              <h5><b>Countermeasure History</b></h5>
-              {/* <CMInputRow cm={latest} onChange={handleCountermeasureChange} />
-               */}
-{!selected?.root_cause || countermeasures.filter(cm => cm.id).length === 0 ? (
-   <CMInputRow cm={latest} onChange={handleCountermeasureChange} />
-) : null}
-              <div className="mt-3">
-                <button type="button" className="btn btn-primary" onClick={saveCountermeasure}>
-                  Save Countermeasure
-                </button>
-              </div>
-
-              {/* CM Table */}
-              <div className="table-responsive mb-3 mt-3">
-                <table className="table table-bordered">
-                  <thead>
-                    <tr>
-                      <th>Description</th>
-                      <th>Target Date</th>
-                      <th>Type</th>
-                      <th>Status</th>
-                      <th>Action</th>
-                      <th>Remarks</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {countermeasures.filter(cm => cm.id).length ? (
-                      countermeasures.filter(cm => cm.id).map((cm, idx) => {
-                        const cmKey = getCmKey(cm, idx);
-                        return (
-                          <tr key={cmKey}>
-                            <td>{cm.description}</td>
-                            <td>{cm.targetDate}</td>
-                            <td>{cm.type}</td>
-                            <td>{badgeForStatus(cm.cm_status)}</td>
-                            <td>
-                              <input
-                                type="checkbox"
-                                checked={uiState[cmKey]?.actionTaken || false}
-                                onChange={(e) => handleActionToggle(cmKey, e.target.checked)}
-                              />
-                            </td>
-                            <td>
-                              {uiState[cmKey]?.showRemarks ? (
-                                <input
-                                  type="text"
-                                  className="form-control"
-                                  value={uiState[cmKey]?.remarks || ''}
-                                  onChange={(e) => handleRemarksChange(cmKey, e.target.value)}
-                                  placeholder="Enter remarks"
-                                />
-                              ) : null}
-                            </td>
-                          </tr>
-                        );
-                      })
-                    ) : (
-                      <tr>
-                        <td colSpan={6} className="text-center">No countermeasures yet</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            <div className="mb-3">
-         <label>Comments</label>
-         <textarea
-          className="form-control"
-          value={latest.comments || ''}
-          rows={3} readOnly style={{ minHeight: '100px', maxHeight: '300px' }}
-        />
-      </div>
-
-      <div className="mb-3">
-        <label>Remarks from effectiveness check</label>
-        <textarea
-          className="form-control"
-          value={remRemarks.map(r => r.reasons).join("\n")}
-          rows={3} readOnly style={{ minHeight: '100px', maxHeight: '300px' }}
-        />
-      </div>
-          </Tab>
         </Tabs>
       </div>
     </div>
@@ -796,11 +641,10 @@ useEffect(() => {
     }, []);
 
   const refreshPsc = useCallback(async (pscId) => {
-    let joined = null;
     try {
       const res = await axios.get(`/api/psc/${pscId}`);
-      if (!res.data) return null;
-      joined = res.data;
+      if (!res.data) return;
+      const joined = res.data;
       if (joined.root_cause) {
         const rc = joined.root_cause;
         const cmsFromApi = (rc.countermeasures || []).map((cm, i) => ({
@@ -840,33 +684,13 @@ setUiState(rebuiltUi);
 
 
         setActiveTab('cm');
-        console.log('refreshPsc loaded root cause and countermeasures', rc, cmsFromApi);
       } else {
-        // No root_cause for this PSC: reset root and related UI state so previous data
-        // doesn't leak into the new form when the user opens it.
-        setRoot({
-          symptom: '',
-          finalCause: '',
-          why1: '',
-          why2: '',
-          why3: '',
-          why4: '',
-          why5: '',
-          countermeasures: [makeEmptyCm('temp-0')]
-        });
-        // reset transient UI state related to countermeasures/form
-        try { setUiState({}); } catch (e) { /* ignore if not available */ }
-        try { setShowAddCm(true); } catch (e) { /* ignore if not available */ }
-        try { setText(''); setRows([]); } catch (e) { /* ignore if not available */ }
+        setRoot(prev => ({ ...prev, countermeasures: prev.countermeasures && prev.countermeasures.length ? prev.countermeasures : [makeEmptyCm('temp-0')] }));
         setActiveTab('root');
-        console.log('refreshPsc no root cause found - cleared form state');
       }
-   
     } catch (err) {
       console.warn('refreshPsc failed', err);
-      return joined;
     }
-    return joined;
   }, []);
 
   const handleSelect = useCallback((psc) => {
@@ -911,7 +735,7 @@ setUiState(rebuiltUi);
   }, []);
 
   const saveRootAndNext = useCallback(async (e) => {
-    // if (e && e.preventDefault) e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     if (!selected) return;
 
     const userId = user?.id || null;
@@ -933,16 +757,10 @@ setUiState(rebuiltUi);
       filled_by: userId,
       countermeasures: cmsToSend
     };
-    const form = e.target.closest('form');
-      if (!form.checkValidity()) {
-        form.reportValidity(); // show browser validation UI
-        return; // stop if validation fails
-      }
 
     try {
       await axios.put(`/api/psc/${selected.id}/rootcause`, payload);
       await refreshPsc(selected.id);
-      setSelected(prev => ({ ...prev, root_cause: true }));
       setActiveTab('cm');
     } catch (err) {
       console.error('saveRootAndNext failed', err);
@@ -962,167 +780,74 @@ const loadremHistory = useCallback(async () => {
 });
    
 
-  // const saveCountermeasure = useCallback(async () => {
-  //   if (!selected) return;
-  //   const cms = root.countermeasures || [];
-
-  // //Filter out empty countermeasures
-  // const cmsToSave = cms.filter(cm => (cm.description || '').trim());
-
-  // if (!cmsToSave.length) return alert('Please enter at least one Countermeasure.');
-  // const userRespId = user?.user_resp_id || user?.userresp || null;
-  //  const payloads = cmsToSave.map((cm, idx) => ({
-  //   description: cm.description,
-  //   targetDate: cm.targetDate,
-  //   type: cm.type || '',
-  //   comments: cm.remarks || '', // <-- now remarks are saved correctly
-  //   created_by: user?.id || null,
-  //   userRespId:userRespId
-  // }));
-  // console.log('Saving countermeasures:', payloads);
-  // const newEntry = (root.countermeasures || [])
-  // .filter(cm => (cm.description || '').trim()) // ignore empty
-  // .map(cm => ({
-  //   description: cm.description,
-  //   targetDate: cm.targetDate,
-  //   type: cm.type,
-  //   remarks: cm.remarks || ''
-    
-  // }));
-
-  //   try {
-  //      const savedCms = [];
-  //      for (const payload of payloads) {
-  //     const res = await axios.post(`/api/psc/${selected.id}/countermeasure`, payload);
-  //     console.log(res.data)
-  //     savedCms.push(res.data);// capture saved countermeasure with latest comments
-  //   }
-  //     await refreshPsc(selected.id);
-  //     setText('');
-  //     setRows(prev => [...prev, newEntry]);
-  //     // setRoot(prev => {
-  //     //   const updated = (prev.countermeasures || []).map(c => ({ ...c }));
-  //     //   const lastAfter = updated[updated.length - 1] || {};
-  //     //   if (lastAfter && (lastAfter.description || '').toString().trim()) {
-  //     //     updated.push(makeEmptyCm(`temp-${Date.now()}`));
-  //     //   }
-  //     //   return { ...prev, countermeasures: updated };
-  //     // });
-
-  //     setRoot(prev => {
-  //         const updated = (prev.countermeasures || []).map((c, idx) => ({
-  //           ...c,
-  //           comments: savedCms[idx]?.comments || c.comments || ''
-  //         }));
-  //         const lastAfter = updated[updated.length - 1] || {};
-  //         if (lastAfter && (lastAfter.description || '').trim()) {
-  //           updated.push(makeEmptyCm(`temp-${Date.now()}`));
-  //         }
-  //         return { ...prev, countermeasures: updated };
-  //     });
-  //     //  setLatest(savedCms[savedCms.length - 1] || latest);
-  //     // Hide the add countermeasure section
-  //     // if (savedCms[savedCms.length - 1]?.comments?.trim()) {
-  //       setShowAddCm(false);
-  //     // }
-  //   } catch (err) {
-  //     console.error('saveCountermeasure failed', err);
-  //     alert('Failed to save countermeasure. See console.');
-  //   }
-  // }, [root, selected, user, refreshPsc]);
-
   const saveCountermeasure = useCallback(async () => {
-   console.log('saveCountermeasure called');
-  if (!selected) return;
+    if (!selected) return;
+    const cms = root.countermeasures || [];
 
-  const cms = root.countermeasures || [];
-  const latestCM = cms[0]; // because your input row is always at index 0
-console.log('Current latestCM:', latestCM);
-  // -------------------------------------------
-  // FIRST TIME SAVE VALIDATION (when adding new CM)
-  // -------------------------------------------
-  // const isFirstTimeCM = !selected?.root_cause;
-  const isFirstTimeCM = cms.every(cm => !cm.id);
-  console.log('Is first time CM:', isFirstTimeCM);
-  if (isFirstTimeCM) {
-    console.log('Validating latestCM for first time save');
-    if (!latestCM.description?.trim()) {
-      return toast.error("Description is required.");
-    }
-
-    if (!latestCM.targetDate) {
-      return toast.error("Target Date is required.");
-    }
-  }
-
-  // -------------------------------------------
-  // SECOND TIME SAVE VALIDATION (table update)
-  // Only validate actionTaken + remarks
-  // -------------------------------------------
-  if (!isFirstTimeCM) {
-    console.log('Validating actionTaken and remarks for existing CMs');
-    for (const cm of cms) {
-      const cmKey = getCmKey(cm);
-      const ui = uiState[cmKey];
-console.log(`CM Key: ${cmKey}, UI State:`, ui);
-      if (!ui?.actionTaken && !ui?.remarks?.trim()) {
-      return toast.error("Remarks required when Action Taken is checked.");
-    }
-        
-    }
-  }
-
-  // -------------------------------------------
-  // PREPARE PAYLOADS FOR API CALL
-  // -------------------------------------------
+  //Filter out empty countermeasures
   const cmsToSave = cms.filter(cm => (cm.description || '').trim());
 
-  if (!cmsToSave.length) {
-    return toast.error('Please enter at least one Countermeasure.');
-  }
-
+  if (!cmsToSave.length) return alert('Please enter at least one Countermeasure.');
   const userRespId = user?.user_resp_id || user?.userresp || null;
-
-  const payloads = cmsToSave.map(cm => ({
+   const payloads = cmsToSave.map((cm, idx) => ({
     description: cm.description,
     targetDate: cm.targetDate,
     type: cm.type || '',
-    comments: cm.remarks || '',
+    comments: cm.remarks || '', // <-- now remarks are saved correctly
     created_by: user?.id || null,
-    userRespId
+    userRespId:userRespId
+  }));
+  console.log('Saving countermeasures:', payloads);
+  const newEntry = (root.countermeasures || [])
+  .filter(cm => (cm.description || '').trim()) // ignore empty
+  .map(cm => ({
+    description: cm.description,
+    targetDate: cm.targetDate,
+    type: cm.type,
+    remarks: cm.remarks || ''
+    
   }));
 
-  try {
-    const savedCms = [];
-
-    for (const payload of payloads) {
+    try {
+       const savedCms = [];
+       for (const payload of payloads) {
       const res = await axios.post(`/api/psc/${selected.id}/countermeasure`, payload);
-      console.log('Saved CM response:', res.data);
-      savedCms.push(res.data);
+      console.log(res.data)
+      savedCms.push(res.data);// capture saved countermeasure with latest comments
     }
-    setRows(prev => [...prev, ...savedCms]);
+      await refreshPsc(selected.id);
+      setText('');
+      setRows(prev => [...prev, newEntry]);
+      // setRoot(prev => {
+      //   const updated = (prev.countermeasures || []).map(c => ({ ...c }));
+      //   const lastAfter = updated[updated.length - 1] || {};
+      //   if (lastAfter && (lastAfter.description || '').toString().trim()) {
+      //     updated.push(makeEmptyCm(`temp-${Date.now()}`));
+      //   }
+      //   return { ...prev, countermeasures: updated };
+      // });
 
-    await refreshPsc(selected.id);
-
-
-
-    // -------------------------------------------
-    // UPDATE TABLE VALUES
-    // -------------------------------------------
-    setRoot(prev => {
-      const updated = (prev.countermeasures || []).map((c, idx) => ({
-        ...c,
-        comments: savedCms[idx]?.comments || c.comments || ''
-      }));
-
-      return { ...prev, countermeasures: updated };
-    });
-
-  } catch (err) {
-    console.error('saveCountermeasure failed', err);
-    toast.error('Failed to save countermeasure. See console.');
-  }
-}, [root, selected, user, refreshPsc]);
+      setRoot(prev => {
+          const updated = (prev.countermeasures || []).map((c, idx) => ({
+            ...c,
+            comments: savedCms[idx]?.comments || c.comments || ''
+          }));
+          const lastAfter = updated[updated.length - 1] || {};
+          if (lastAfter && (lastAfter.description || '').trim()) {
+            updated.push(makeEmptyCm(`temp-${Date.now()}`));
+          }
+          return { ...prev, countermeasures: updated };
+      });
+      //  setLatest(savedCms[savedCms.length - 1] || latest);
+      // Hide the add countermeasure section
+      // if (savedCms[savedCms.length - 1]?.comments?.trim()) {
+        setShowAddCm(false);
+      // }
+    } catch (err) {
+      console.error('saveCountermeasure failed', err);
+      alert('Failed to save countermeasure. See console.');
+    }
+  }, [root, selected, user, refreshPsc]);
 
   const openCommentsDialog = useCallback(async (cm) => {
     if (!cm) return;
@@ -1325,14 +1050,6 @@ console.log(`CM Key: ${cmKey}, UI State:`, ui);
         history={cmHistory}
         onSubmitComment={submitCommentForSelectedCM}
       />
-      <div className="container-fluid">
-           <Toaster
-              position="top-right"
-              toastOptions={{
-                duration: 3000,
-              }}
-            />
-          </div>
     </div>
   );
 }

@@ -174,13 +174,13 @@ const ProblemCard = ({ psc = {},activeEsc=null }) => {
         <div className="section">
           <div className="row">
             <label>
-              Responsible: <span className="readonly">{firstCm.created_by}</span>
+              Responsible: <span className="readonly">{firstCm.username}</span>
             </label>
             <label>
               Target Date: <span className="readonly">{firstCm.target_date ? new Date(firstCm.target_date).toLocaleDateString('en-CA') : ''}</span>
             </label>
             <label>
-              Shift: <span className="readonly">{p.shift_name}</span>
+              Shift: <span className="readonly">{firstCm.cmshiftName}</span>
             </label>
           </div>
         </div>

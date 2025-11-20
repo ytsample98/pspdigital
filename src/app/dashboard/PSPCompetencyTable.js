@@ -2,6 +2,10 @@ import React, { useEffect, useState } from 'react';
 import '../../assets/styles/PSPCompetencyTable.css';
 import toast, { Toaster,ToastContainer } from 'react-hot-toast';
 import PSPChart from './PSPChart';
+import { DataTable } from 'primereact/datatable';
+import { Column } from 'primereact/column';
+import { ColumnGroup } from 'primereact/columngroup';
+import { Row } from 'primereact/row';
 
 /*export default function PSPCompetencyTable() {
   const [data, setData] = useState([]);
@@ -231,6 +235,52 @@ const [data, setData] = useState([]);
 { month: "Oct", raised: 21, closed: 8, competency: 78 },
   ];
 
+  const headerGroup = (
+  <ColumnGroup>
+
+    {/* SUMMARY ROW 
+    <Row>
+      <Column header="PSP Card Competency" colSpan={6} className="summary-title" />
+      <Column header="YTD Raised" />
+      <Column header="231" />
+      <Column header="YTD Closure" />
+      <Column header="181" />
+      <Column header="YTD Closure (%)" />
+      <Column header="78%" />
+    </Row>*/}
+
+    {/* MAIN GROUP TITLES */}
+    <Row>
+      <Column header="Months" rowSpan={2} />
+
+      <Column header="Team Leader" colSpan={3} className="group-header-center" style={{ textAlign: "center" }}/>
+      <Column header="Value Stream Leader" colSpan={3} style={{ textAlign: "center" }}/>
+      <Column header="Plant Level" colSpan={3} style={{ textAlign: "center" }}/>
+
+      <Column header="Pending" rowSpan={2} />
+      <Column header="PSP" rowSpan={2} />
+    </Row>
+
+    {/* SUB HEADINGS */}
+    <Row>
+      {/* TL */}
+      <Column header="Card Raised" />
+      <Column header="Cards Closed" />
+      <Column header="Opened Cards" />
+
+      {/* VSL */}
+      <Column header="Cards Escalated" />
+      <Column header="Card Closed" />
+      <Column header="Cards Opened" />
+
+      {/* PLANT */}
+      <Column header="Cards Escalated" />
+      <Column header="Card Closed" />
+      <Column header="Cards Opened" />
+    </Row>
+  </ColumnGroup>
+);
+
   return (
     <div className="psp-dashboard">
 
@@ -248,11 +298,12 @@ const [data, setData] = useState([]);
           &gt; 80%
         </div>
       </div>
-      <div className="table-container">
+
+      {/* <div className="table-container">
 
         <table className="competency-table">
           <thead>
-            {/*<tr className="summary-row">
+            <tr className="summary-row">
               <th colSpan="6" className="summary-title">PSP Card Competency</th>
               <th>YTD Raised</th>
               <th>231</th>
@@ -261,7 +312,7 @@ const [data, setData] = useState([]);
               <th>YTD Closure (%)</th>
               <th>78%</th>
             </tr>
-            */}
+           
             <tr>
               <th rowSpan="2">Months</th>
               <th colSpan="3">Team Leader(L1)</th>
@@ -297,25 +348,20 @@ const [data, setData] = useState([]);
               <tr key={idx}>
                 <td>{row.month}</td>
 
-                {/* Team Leader */}
                 <td>{row.teamLeader.raised}</td>
                 <td>{row.teamLeader.tl_closed}</td>
                 <td>{row.teamLeader.tl_opened}</td>
 
-                {/* Value Stream Leader */}
                 <td>{row.valueStreamLeader.vsl_escalated}</td>
                 <td>{row.valueStreamLeader.vsl_closed}</td>
                 <td>{row.valueStreamLeader.vsl_opened}</td>
 
-                {/* Plant Level */}
                 <td>{row.plantLevel.plant_escalated}</td>
                 <td>{row.plantLevel.plant_closed}</td>
                 <td>{row.plantLevel.plant_opened}</td>
 
                 <td>{row.pending}</td>
-                {/* <td className={getCompetencyClass(row.competency)}>
-                  {row.competency}%
-                </td> */}
+                
                  <td className={row.raised === 0 || row.competency == null ? "" : getCompetencyClass(row.competency)}>
                     {row.raised === 0 || row.competency == null ? "#Div/0!" : `${row.competency}%`}
                   </td>
@@ -326,7 +372,50 @@ const [data, setData] = useState([]);
           </tbody>
         </table>
         
-      </div>
+      </div> */}
+
+      <DataTable
+  value={data}
+  headerColumnGroup={headerGroup}
+  className="competency-table"
+  showGridlines
+>
+  <Column field="month" />
+
+  {/* TL */}
+  <Column field="teamLeader.raised" />
+  <Column field="teamLeader.tl_closed" />
+  <Column field="teamLeader.tl_opened" />
+
+  {/* VSL */}
+  <Column field="valueStreamLeader.vsl_escalated" />
+  <Column field="valueStreamLeader.vsl_closed" />
+  <Column field="valueStreamLeader.vsl_opened" />
+
+  {/* PLANT */}
+  <Column field="plantLevel.plant_escalated" />
+  <Column field="plantLevel.plant_closed" />
+  <Column field="plantLevel.plant_opened" />
+
+  <Column field="pending" />
+
+  {/* Competency With Color */}
+  <Column
+    header="PSP"
+    body={(row) =>
+    row.raised === 0 || row.competency == null
+      ? "#Div/0!"
+      : `${row.competency}%`
+  }
+  bodyClassName={(row) =>
+    row.raised === 0 || row.competency == null
+      ? "bg-red"
+      : getCompetencyClass(row.competency)
+  }
+  />
+</DataTable>
+
+      
       {/* <div className="chart-container">
         <PSPChart dashdata={dashdata} />  
       </div> */}

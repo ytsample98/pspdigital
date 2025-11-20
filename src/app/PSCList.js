@@ -3,9 +3,16 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import PSCFullView from './PSCFullView';
 import sendNotification from './shared/NavBar';
+import toast, { Toaster } from "react-hot-toast";
+import { DataTable } from 'primereact/datatable';
+import { Column } from 'primereact/column';
+import { Button } from 'primereact/button';
+import { IconField } from 'primereact/iconfield';
+import { InputIcon } from 'primereact/inputicon';
+import { InputText } from 'primereact/inputtext';
+import { FilterMatchMode } from 'primereact/api';
+import { Tag } from 'primereact/tag';
 
-
-import toast, { Toaster } from 'react-hot-toast';
 
 export default function PSCList() {
   const [pscs, setPscs] = useState([]);
@@ -19,6 +26,10 @@ export default function PSCList() {
     line_id: '', short_description: '', problem_description: '', qty_affected: '', problem_type: '',
     part_affected: '', supplier: '', status: 'Open'
   });
+  const [filters, setFilters] = useState({
+  global: { value: null, matchMode: FilterMatchMode.CONTAINS }
+});
+ const [globalFilterValue, setGlobalFilterValue] = useState('');
   // const sendNotification = (message) => {
   //   window.dispatchEvent(new CustomEvent("psc-notification", { detail: message }));
   // };
@@ -40,13 +51,20 @@ export default function PSCList() {
 
   useEffect(() => { fetchPscs(); fetchMasters(); }, []);
   useEffect(() => {
-  const fetchNextNumber = async () => {
-    const res = await fetch('/psccard/next-number');
-    const data = await res.json();
-    setProblemNumber(data.problem_number);
-  };
+  // const fetchNextNumber = async () => {
+  //   const res = await fetch('/psccard/next-number');
+  //   const data = await res.json();
+  //   setProblemNumber(data.problem_number);
+  // };
   fetchNextNumber();
 }, []);
+const fetchNextNumber = async () => {
+    const res = await fetch('/psccard/next-number');
+    const data = await res.json();
+    console.log("Next Problem Number:", data.problem_number);
+    setProblemNumber(data.problem_number);
+    return data.problem_number;
+  };
 
   const fetchMasters = async () => {
     try {
@@ -150,19 +168,26 @@ export default function PSCList() {
           (user && (user.userName || user.username || user.name || user.usermail)) ||
           '',
         date: localDate,
+
       };
 
       await axios.post('/api/psc', payload);
       // generateProblemNumber()
-      // fetchNextNumber();
+      
       //sendNotification('Card Created:101');
       //sendNotification(`${form.problem_number}`);
+     
 
       fetchPscs();
+      fetchNextNumber();
       setForm(emptyForm());
       setShowForm(false);
-      setProblemNumber(true);
-      window.location.reload();
+      // window.location.reload();
+       toast.success(`Record saved successfully :  ${problemNumber} created`, {
+        position: 'top-right',
+        autoClose: 3000,
+      }
+    );
 
 
     } catch (error) {
@@ -174,11 +199,12 @@ export default function PSCList() {
 
   const openPreview = (psc) => { setSelected(psc); setShowPreview(true); setShowForm(false); };
 
-  const openFormForCreate = () => {
+  const openFormForCreate = async() => {
+    const nextNumber = await fetchNextNumber();
     const user = (() => { try { return JSON.parse(localStorage.getItem('dcmsUser')); } catch (e) { return null; } })();
     setForm({
       ...emptyForm(),
-      problem_number: generateProblemNumber(),
+      problem_number: nextNumber,
       initiator_name: user && (user.userName || user.username || user.name || user.usermail) || '',
       date: localDate,
       shift: detectShift(),
@@ -268,55 +294,214 @@ const renderpsctable = () => {
   ));
 };
 
-  const renderTable = () => (
-    <div className="card mt-4 full-height">
-      <div className="card-body">
-        <div className="d-flex justify-content-between align-items-center mb-3">
-          <h4 className="card-title">Problem Solving Card List</h4>
+//   const renderTable = () => (
+//     <div className="card mt-4 full-height">
+//       <div className="card-body">
+//         <div className="d-flex justify-content-between align-items-center mb-3">
+//           <h4 className="card-title">Problem Solving Card List</h4>
 
-          <div className="d-flex align-items-center" style={{ gap: '10px', width: '40%' }}>
-            <input
-              type="text"
-              className="form-control"
-              placeholder="Search..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <button type="button" className="btn btn-primary" onClick={openFormForCreate}>
-              + Add PSC
-            </button>
-          </div>
-        </div>
+//           <div className="d-flex align-items-center" style={{ gap: '10px', width: '40%' }}>
+//             <input
+//               type="text"
+//               className="form-control"
+//               placeholder="Search..."
+//               value={searchTerm}
+//               onChange={(e) => setSearchTerm(e.target.value)}
+//             />
+//             <button type="button" className="btn btn-primary" onClick={openFormForCreate}>
+//               + PSC
+//             </button>
+//           </div>
+//         </div>
 
-        {/* Table */}
-        <div className='table-responsive'>
-          <table className='table table-bordered table-hover'>
-            <thead className='thead-light'>
-              <tr style={{ fontSize: '14px' }}>
-                <th>Problem No</th>
-                <th>Initiator</th>
-                <th>Date</th>
-                <th>Shift</th>
-                <th>Value Stream</th>
-                <th>Short Description</th>
-                <th>Stage</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-  {renderpsctable()}
-</tbody>
+//         {/* Table */}
+//         <div className='table-responsive'>
+//           <table className='table table-bordered table-hover'>
+//             <thead className='thead-light'>
+//               <tr style={{ fontSize: '14px' }}>
+//                 <th>Problem No</th>
+//                 <th>Initiator</th>
+//                 <th>Date</th>
+//                 <th>Shift</th>
+//                 <th>Value Stream</th>
+//                 <th>Short Description</th>
+//                 <th>Stage</th>
+//                 <th>Status</th>
+//               </tr>
+//             </thead>
+//             <tbody>
+//   {renderpsctable()}
+// </tbody>
 
-          </table>
-        </div>
+//           </table>
+//         </div>
+//       </div>
+//     </div>
+//   );
+
+const onGlobalFilterChange = (e) => {
+    const value = e.target.value;
+    let _filters = { ...filters };
+    _filters['global'].value = value;
+    setFilters(_filters);
+    setGlobalFilterValue(value);
+  };
+const getSeverity = (status) => {
+    switch (status) {
+      case 'Completed':
+        return 'success';
+
+      case 'For Validation':
+        return 'info';
+
+      case 'Work in Progress':
+        return 'warning';
+
+      case 'Open':
+        return null;
+    }
+  };
+
+  const statusBodyTemplate = (rowData) => {
+    return (
+      <Tag value={rowData.status} severity={getSeverity(rowData.status)} />
+    );
+  };
+
+  const renderHeader = () => {
+    return (
+      <div className="flex align-items-center gap-2flex justify-content-end align-items-center gap-2 w-full">
+        <IconField iconPosition="left">
+          <InputIcon className="pi pi-search" />
+          
+          <InputText
+            value={globalFilterValue}
+            onChange={onGlobalFilterChange}
+            placeholder="Keyword Search"
+          />
+        </IconField>
+        <Button 
+            label="+ PSC" 
+            onClick={openFormForCreate} 
+            className="p-button-primary"
+          />
       </div>
-    </div>
-  );
+    );
+  };
 
+  const header = renderHeader();
+
+  const renderTable = () => (
+  <div className="card mt-4 full-height">
+    <div className="card-body">
+      <div className="d-flex justify-content-between align-items-center mb-3">
+        <h4 className="card-title">Problem Solving Card List</h4>
+
+        {/* <div className="d-flex align-items-center" style={{ gap: '10px', width: '40%' }}>
+          <input
+            type="text"
+            className="form-control"
+            placeholder="Search..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+
+          <Button 
+            label="+ Add PSC" 
+            onClick={openFormForCreate} 
+            className="p-button-primary"
+          />
+        </div> */}
+      </div>
+
+      {/* PRIME DATA TABLE */}
+      <DataTable 
+        value={filteredPSCs} 
+        paginator
+        rows={10}
+        sortMode="multiple"
+        responsiveLayout="scroll"
+        loading={filteredPSCs.length === 0}
+        emptyMessage="No PSC records found"
+        header={header}
+        className="p-datatable-sm" 
+         filters={filters} 
+  globalFilterFields={[
+    'problem_number',
+    'initiator_name',
+    'date',
+    'shift_name',
+    'vl_name',
+    'ticket_stage',
+    'short_description',
+    'status'
+  ]}
+
+      >
+
+        {/* Problem No with clickable button */}
+        <Column style={{ minWidth: '9rem' }}
+          header="Problem No" 
+          field="problem_number"
+          sortable
+          body={(row) => (
+            <Button 
+              className="p-button-link p-0" 
+              onClick={() => openPreview(row)}
+              label={row.problem_number || row.problemNumber}
+            />
+          )}
+        />
+
+        {/* Other columns */}
+        <Column  style={{ minWidth: '9rem' }}
+          field="initiator_name" 
+          header="Initiator" 
+          sortable
+          body={(row) => row.initiator_name || row.initiatorName}
+        />
+
+        <Column style={{ minWidth: '7rem' }}
+          field="date" 
+          header="Date" 
+          sortable
+          body={(row) => row.date ? new Date(row.date).toLocaleDateString('en-CA') : ''}
+        />
+
+        <Column style={{ minWidth: '7rem' }}
+          header="Shift"
+          sortable
+          field='shift_name'
+        />
+
+        <Column style={{ minWidth: '8rem' }} field="vl_name" header="Value Stream" sortable />
+
+       
+
+        <Column style={{ minWidth: '12rem' }}
+          field="short_description"
+          header="Short Description"
+          sortable
+          body={(row) => row.short_description || row.shortDescription}
+        />
+         <Column style={{ minWidth: '6rem' }}
+          field="ticket_stage" 
+          header="Stage" 
+          sortable
+          body={(row) => row.ticket_stage || row.ticketStage}
+        />
+
+        <Column style={{ minWidth: '8rem' }}  body={statusBodyTemplate} field="status" header="Status" sortable />
+
+      </DataTable>
+    </div>
+  </div>
+);
 
 
   const renderForm = () => (
     <div className="card full-height">
+      
       <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
         <h4 className="mb-3">Create PSC</h4>
         <form className='form-sample' onSubmit={handleSubmit}>
@@ -386,18 +571,17 @@ const renderpsctable = () => {
           <div className='form-row'>
 
             <div className='form-group col-md-4'>
-              <label>Short Description</label>
+              <label>Short Description <span style={{color:'red'}}>*</span></label>
               <input className='form-control'
                 name='short_description'
                 value={form.short_description}
-                onChange={handleChange} placeholder='Short Description' /></div>
+                onChange={handleChange} placeholder='Short Description' required /></div>
             <div className='form-group col-md-8'>
-              <label>Problem Description</label>
+              <label>Problem Description <span style={{color:'red'}}>*</span> </label>
               <textarea className='form-control'
                 name='problem_description'
                 value={form.problem_description}
-                onChange={handleChange} placeholder='Problem Description' /></div>
-
+                onChange={handleChange} placeholder='Problem Description' required /></div>
           </div>
           <div className='form-row'>
             <div className='form-group col-md-3'>
@@ -441,6 +625,12 @@ const renderpsctable = () => {
 
   return (
     <div className="container-fluid">
+     <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 3000,
+        }}
+      />
       {showForm ? renderForm() : showPreview ? renderPreview() : renderTable()}
 
     </div>

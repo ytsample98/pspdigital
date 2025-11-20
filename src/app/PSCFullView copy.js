@@ -6,26 +6,7 @@ import ProblemCard from './ProblemCard.js';
 import { loadEscalations, computeEscalationForPsc, isFieldEditable,hoursSince } from './pscPermissions';
 
 export default function PSCFullView({ psc = {}, actions = null, onClose = () => {}, onOpenEffectCheck = null, openPrint = () => { window.location.href = '/ProblemCard'; } }) {
-  // Support passing either a full `psc` object or a minimal `{ id }`.
-  // If only an id is provided, fetch the full PSC row from the backend (mapFullPscRow) for a canonical view.
-  const [remotePsc, setRemotePsc] = useState(null);
-  const p = remotePsc || psc || {};
-
-  useEffect(() => {
-    let mounted = true;
-    const load = async () => {
-      try {
-        if (psc && psc.id) {
-          const res = await axios.get(`/api/psc/${psc.id}`);
-          if (mounted) setRemotePsc(res.data || null);
-        }
-      } catch (err) {
-        console.warn('PSCFullView: failed to fetch PSC by id', err);
-      }
-    };
-    load();
-    return () => { mounted = false; };
-  }, [psc && psc.id]);
+  const p = psc || {};
   const [escalations, setEscalations] = useState([]);
   const [activeEsc, setActiveEsc] = useState(null);
   const [elapsedHours, setElapsedHours] = useState(0);
@@ -155,8 +136,7 @@ setShowProblemCard(true);
   const assignedDept = (p.corrective_action?.corrective_assign_to || p.correctiveAction?.corrective_assign_to || p.corrective_assign_to || '');
   const userDept = user?.dept_id || user?.department || user?.dept_name || '';
   const stage = (p.ticket_stage || p.ticketStage || '').toLowerCase();
-  // const canSeeRootCause = stage === 'Check' && assignedDept && String(userDept) === String(assignedDept);
-  const canSeeRootCause = stage === 'Check' ;
+  const canSeeRootCause = stage === 'Check' && assignedDept && String(userDept) === String(assignedDept);
   const canSeeCorrective =  stage === 'Plan';
   const hasAcceptedCM = countermeasuresList.some(cm => (cm.status || cm.cm_status || '').toString().toLowerCase() === 'accepted');
   const canSeeEffectCheck = stage === 'Action' && hasAcceptedCM;
@@ -294,8 +274,6 @@ setShowProblemCard(true);
 
               <div className='form-group mt-3'>
                 <label>Root Cause Analysis / 5W</label>
-                <div><strong>Symptom:</strong> {rootCauseObj.symptom}</div>
-               <div><strong>Final Cause:</strong> {rootCauseObj.final_cause}</div>
                 <div style={{ border: '1px solid #ddd', padding: 8, minHeight: 120 }}>
                   {whyList.map((w, i) => (
                     <div key={i} style={editableHint(`why${i+1}`)}><strong>Why {i+1}:</strong> {w || ''}</div>
